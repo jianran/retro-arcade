@@ -1,0 +1,11 @@
+# Supabase project config — used by `supabase functions deploy`
+project_id = "retro-arcade"
+
+[functions.buy]
+verify_jwt = true
+
+[functions.alipay-notify]
+verify_jwt = false
+
+[functions.order-status]
+verify_jwt = false

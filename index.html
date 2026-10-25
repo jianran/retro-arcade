@@ -201,6 +201,9 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 .shop-qr img{width:230px;height:230px;object-fit:contain;background:#fff;border-radius:12px;
   padding:6px;border:1px solid var(--border)}
 .shop-qr p{margin:0;color:var(--dim);font-size:13px;line-height:1.6}
+#qrWrap svg{width:230px;height:230px;background:#fff;border-radius:12px;padding:6px;
+  border:1px solid var(--border)}
+.qr-hint{min-height:16px}
 .shop-divider{display:flex;align-items:center;gap:10px;color:var(--faint);
   font-size:11px;letter-spacing:2px;text-transform:uppercase}
 .shop-divider::before,.shop-divider::after{content:"";flex:1;height:1px;background:var(--border)}
@@ -280,8 +283,12 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
     <p class="shop-info" id="shopInfo">5 free tokens arrive every morning — unused ones stack up.</p>
     <button class="shop-buy" id="btnPay">💰 Buy 5 tokens — ¥7</button>
     <div class="shop-qr" id="shopQr" hidden>
-      <img src="pay-qr.png" alt="Payment QR code — scan to pay ¥7">
-      <p>Scan with Alipay to pay ¥7.<br>Then ask for your top-up code.</p>
+      <div id="qrWrap"></div>
+      <div id="qrStatic">
+        <img src="pay-qr.png" alt="Payment QR code — scan to pay ¥7">
+        <p>Scan with Alipay to pay ¥7.<br>Then ask for your top-up code.</p>
+      </div>
+      <p class="qr-hint" id="qrHint"></p>
     </div>
     <div class="shop-divider"><span>or enter a top-up code</span></div>
     <div class="shop-redeem">
@@ -325,6 +332,9 @@ const shopBalance = document.getElementById("shopBalance");
 const shopInfo = document.getElementById("shopInfo");
 const shopMsg = document.getElementById("shopMsg");
 const shopQr = document.getElementById("shopQr");
+const qrWrap = document.getElementById("qrWrap");
+const qrStatic = document.getElementById("qrStatic");
+const qrHint = document.getElementById("qrHint");
 const codeInput = document.getElementById("codeInput");
 const tokenPill = document.getElementById("tokenPill");
 const tokenCount = document.getElementById("tokenCount");
@@ -346,14 +356,16 @@ grid.innerHTML = GAMES.map(g => `
 /* ---- token system ----
    5 free tokens per day (unused ones stack up). Elemental Merge and Chaos Bug
    Hunt cost 3, every other game costs 1. ¥7 buys 5 tokens in the Token Shop.
-   The balance lives in this browser (localStorage) — a static site has no
-   server, so each device keeps its own balance and code history. Top-up codes
-   are one-time-per-device, rotate per purchase, and expire after a day. */
+   Server mode (public site): balances live in Supabase and the Buy button
+   shows a live Alipay QR — tokens arrive automatically when the payment lands.
+   Offline fallback (no backend configured or unreachable): the old
+   localStorage wallet with signed top-up codes keeps working. */
 const DAILY = 5, BUY = 5;
-// Public verification key for top-up redeem strings. Codes are signed by the
-// arcade owner's private key (kept in the local topup.html generator, not
-// published), so the public site can CHECK codes but nobody reading this
-// source can forge one.
+const SUPABASE_URL = "";   // e.g. https://xxxx.supabase.co  (filled during setup)
+const SUPABASE_ANON = "";  // the "anon public" key from Supabase → Settings → API
+// Public verification key for offline top-up redeem strings. Codes are signed
+// by the arcade owner's private key (kept in the local topup.html generator,
+// not published), so nobody reading this source can forge one.
 const PUB_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfmocgoIVawoS5cIQIPJSdfFbi70T4l2n4y4miLHq7zjaPDM1dFAyDp8AWaK4yqP0fR_i_mH1PnsRTcR73wo6iA";
 const LS_T = "ra_tokens", LS_D = "ra_day", LS_U = "ra_codes_used";
 
@@ -367,23 +379,67 @@ const b64urlToBytes = s => {
   return Uint8Array.from(atob(s), c => c.charCodeAt(0));
 };
 const bal = () => parseInt(localStorage.getItem(LS_T) || "0", 10) || 0;
-const setBal = n => { localStorage.setItem(LS_T, String(Math.max(0, n))); updateTokenUI(); };
+let currentBal = 0;                    // the balance the UI shows (either source)
+let backendOn = false;                 // true once Supabase answers
+const setBal = n => { currentBal = n; localStorage.setItem(LS_T, String(Math.max(0, n))); updateTokenUI(); };
 const usedCodes = () => { try { return JSON.parse(localStorage.getItem(LS_U) || "[]"); } catch (e) { return []; } };
 
-function updateTokenUI(){
-  tokenCount.textContent = bal();
-  shopBalance.textContent = bal();
+const deviceId = () => {
+  let d = localStorage.getItem("ra_device");
+  if (!d){
+    d = crypto.randomUUID ? crypto.randomUUID()
+      : "id-" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+    localStorage.setItem("ra_device", d);
+  }
+  return d;
+};
+async function sbRpc(fn, args){
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    if (!r.ok) return null;
+    const t = await r.text();
+    const n = Number(t);
+    return t === "" || isNaN(n) ? null : n;
+  } catch (e){ return null; }
 }
-function refreshDaily(){
+async function sbInit(){
+  if (!SUPABASE_URL.startsWith("http")) return false;
+  const b = await sbRpc("get_balance", { p_device: deviceId() });
+  if (b === null){ backendOn = false; return false; }
+  backendOn = true;
+  currentBal = b;
+  return true;
+}
+
+function updateTokenUI(){
+  tokenCount.textContent = currentBal;
+  shopBalance.textContent = currentBal;
+}
+async function refreshDaily(){
+  if (backendOn || await sbInit()){ updateTokenUI(); return; }
   const today = dayStr();
   if (localStorage.getItem(LS_D) !== today){
     localStorage.setItem(LS_D, today);
     setBal(bal() + DAILY);
   }
+  currentBal = bal();
   updateTokenUI();
 }
-function spend(cost, name){
-  refreshDaily();
+async function spend(cost, name){
+  if (backendOn || await sbInit()){
+    const nb = await sbRpc("spend_tokens", { p_device: deviceId(), p_cost: cost });
+    if (nb !== null){
+      if (nb < 0){ openShop(`“${name}” costs 🪙 ${cost} — you only have 🪙 ${currentBal}.`); return false; }
+      currentBal = nb;
+      updateTokenUI();
+      return true;
+    }
+    backendOn = false; // server unreachable → fall back to the local wallet
+  }
   if (bal() >= cost){ setBal(bal() - cost); return true; }
   openShop(`“${name}” costs 🪙 ${cost} — you only have 🪙 ${bal()}.`);
   return false;
@@ -392,11 +448,93 @@ function openShop(info){
   shopInfo.textContent = info || "5 free tokens arrive every morning — unused ones stack up.";
   setShopMsg("", "");
   codeInput.value = "";
+  stopOrderPoll();
   shop.hidden = false;
   updateTokenUI();
 }
-function closeShop(){ shop.hidden = true; }
+function closeShop(){ stopOrderPoll(); shop.hidden = true; }
 function setShopMsg(msg, cls){ shopMsg.textContent = msg; shopMsg.className = "shop-msg " + (cls || ""); }
+
+/* ---- buying (server mode: live Alipay QR + polling) ---- */
+let orderPoll = null;
+function stopOrderPoll(){ if (orderPoll){ clearInterval(orderPoll); orderPoll = null; } }
+function loadQrLib(cb){
+  if (window.qrcode) return cb();
+  const s = document.createElement("script");
+  s.src = "libs/qrcode.min.js";
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+function showDynamicQr(qrCode, orderId){
+  shopQr.hidden = false;
+  qrStatic.hidden = true;
+  qrWrap.innerHTML = "";
+  qrHint.textContent = "Scan with Alipay to pay ¥7 — the tokens appear automatically.";
+  setShopMsg("Waiting for payment…", "");
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(qrCode);
+    qr.make();
+    qrWrap.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+  } catch (e){ /* fall back to text below */ }
+  stopOrderPoll();
+  let tries = 0;
+  orderPoll = setInterval(async () => {
+    if (++tries > 40){
+      stopOrderPoll();
+      setShopMsg("Still waiting — the tokens will land as soon as Alipay confirms; just reopen the shop.", "err");
+      return;
+    }
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/order-status?order_id=${orderId}`,
+        { headers: { Authorization: `Bearer ${SUPABASE_ANON}` } });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.status === "paid"){
+        stopOrderPoll();
+        currentBal = d.tokens;
+        updateTokenUI();
+        setShopMsg(`Paid! +${BUY} tokens. Balance: 🪙 ${currentBal}.`, "ok");
+        qrWrap.innerHTML = "";
+        qrHint.textContent = "✅ Payment received — enjoy the games!";
+      } else if (d.status === "closed"){
+        stopOrderPoll();
+        setShopMsg("This order was closed. Click Buy again if you still want tokens.", "err");
+      }
+    } catch (e){ /* transient network error — keep polling */ }
+  }, 3000);
+}
+function showStaticQr(){
+  shopQr.hidden = false;
+  qrStatic.hidden = false;
+  qrWrap.innerHTML = "";
+  qrHint.textContent = "";
+  setShopMsg("Scan with Alipay to pay ¥7, then enter your top-up code below.", "ok");
+}
+async function buyTokens(){
+  if (backendOn || await sbInit()){
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/buy`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ device_id: deviceId() }),
+      });
+      if (r.ok){
+        const d = await r.json();
+        loadQrLib(() => showDynamicQr(d.qr_code, d.order_id));
+        return;
+      }
+      if (r.status === 502){
+        qrStatic.hidden = true;
+        qrHint.textContent = "Payment provider is unavailable right now — try again later.";
+        setShopMsg("Payment provider is unavailable right now — try again later.", "err");
+        return;
+      }
+    } catch (e){ /* fall through to offline mode */ }
+    backendOn = false;
+  }
+  showStaticQr();
+}
 
 async function verifyRedeem(code, sig, day){
   const key = await crypto.subtle.importKey("spki", b64urlToBytes(PUB_KEY),
@@ -425,8 +563,8 @@ function hideLoader(){
   loader.hidden = true;
   if (loadTimer){ clearTimeout(loadTimer); loadTimer = null; }
 }
-function play(g){
-  if (!spend(g.cost, g.name)) return;
+async function play(g){
+  if (!(await spend(g.cost, g.name))) return;
   current = g;
   playerTitle.textContent = g.name;
   playerBar.style.setProperty("--accent", g.accent);
@@ -460,9 +598,9 @@ document.getElementById("btnNewTab").addEventListener("click", () => { if (curre
 
 tokenPill.addEventListener("click", () => openShop());
 document.getElementById("btnShopClose").addEventListener("click", closeShop);
-document.getElementById("btnPay").addEventListener("click", () => {
-  shopQr.hidden = !shopQr.hidden;
-  setShopMsg(shopQr.hidden ? "" : "Scan with Alipay to pay ¥7, then enter your top-up code below.", "ok");
+document.getElementById("btnPay").addEventListener("click", async () => {
+  if (shopQr.hidden){ shopQr.hidden = false; await buyTokens(); }
+  else shopQr.hidden = true;
 });
 document.getElementById("btnRedeem").addEventListener("click", async () => {
   const r = await redeem(codeInput.value);
