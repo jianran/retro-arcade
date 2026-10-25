@@ -28,6 +28,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "invalid device_id" }), { status: 400, headers: cors });
   }
 
+  // Make sure the player row exists (orders reference it)
+  await supabase.from("players").insert({ device_id: deviceId }, { ignoreDuplicates: true });
+
   const outTradeNo = `ARC${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
 
   let qrCode: string;
@@ -40,7 +43,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("precreate error:", e);
-    return new Response(JSON.stringify({ error: "payment provider unavailable, try again later" }),
+    return new Response(JSON.stringify({ error: "payment provider unavailable: " + (e as Error).message }),
       { status: 502, headers: cors });
   }
 

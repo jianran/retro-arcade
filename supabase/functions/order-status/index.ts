@@ -1,6 +1,7 @@
 // GET /functions/v1/order-status?order_id=<uuid>
 // The player's browser polls this. Returns { status, tokens }.
-// If the notify was missed, an active Alipay query settles the order here.
+// For pending orders it asks the provider directly (PayPal REST / Alipay
+// trade.query) so a missed webhook can't strand a payment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { queryTrade } from "../_shared/alipay.ts";
 
@@ -23,31 +24,59 @@ Deno.serve(async (req) => {
 
   const { data: order, error } = await supabase
     .from("orders")
-    .select("device_id, out_trade_no, status")
+    .select("device_id, out_trade_no, status, provider, external_ref")
     .eq("id", orderId)
     .single();
 
   if (error || !order) return new Response(JSON.stringify({ error: "order not found" }), { status: 404, headers: cors });
 
+  const settle = async () => {
+    // Idempotent: only the first PAID transition credits tokens.
+    const { error: updErr } = await supabase
+      .from("orders")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .eq("status", "pending");
+    if (updErr) return;
+    const { error: creditErr } = await supabase.rpc("credit_tokens", {
+      p_device: order.device_id,
+      p_amount: 5,
+    });
+    if (creditErr) console.error("credit failed:", creditErr);
+  };
+
   if (order.status !== "paid") {
-    // Notify may not have arrived yet (or at all) — ask Alipay directly.
-    const tradeStatus = await queryTrade(order.out_trade_no);
-    if (tradeStatus === "TRADE_SUCCESS" || tradeStatus === "TRADE_FINISHED") {
-      const { error: updErr } = await supabase
-        .from("orders")
-        .update({ status: "paid", paid_at: new Date().toISOString() })
-        .eq("id", orderId)
-        .eq("status", "pending");
-      if (updErr) console.error("order update failed:", updErr);
-      else {
-        const { error: creditErr } = await supabase.rpc("credit_tokens", {
-          p_device: order.device_id,
-          p_amount: 5,
-        });
-        if (creditErr) console.error("credit failed:", creditErr);
+    try {
+      if (order.provider === "paypal" && order.external_ref) {
+        const auth = btoa(`${Deno.env.get("PAYPAL_CLIENT_ID")}:${Deno.env.get("PAYPAL_SECRET")}`);
+        const headers = { Authorization: `Basic ${auth}`, "Content-Type": "application/json" };
+        const res = await fetch(`${Deno.env.get("PAYPAL_API_BASE")}/v2/checkout/orders/${order.external_ref}`, { headers });
+        const pp = await res.json();
+        let st = pp.status;
+        if (st === "APPROVED") {
+          // intent=CAPTURE orders may still need an explicit capture
+          const capRes = await fetch(`${Deno.env.get("PAYPAL_API_BASE")}/v2/checkout/orders/${order.external_ref}/capture`,
+            { method: "POST", headers });
+          if (capRes.ok) {
+            const cap = await capRes.json();
+            st = cap.status ?? st;
+          }
+        }
+        if (st === "COMPLETED") await settle();
+        else if (st === "VOIDED" || st === "PAYER_ACTION_REQUIRED") {
+          await supabase.from("orders").update({ status: "closed" }).eq("id", orderId).eq("status", "pending");
+        }
+      } else {
+        // Alipay (or legacy rows without provider)
+        const tradeStatus = await queryTrade(order.out_trade_no);
+        if (tradeStatus === "TRADE_SUCCESS" || tradeStatus === "TRADE_FINISHED") {
+          await settle();
+        } else if (tradeStatus === "TRADE_CLOSED") {
+          await supabase.from("orders").update({ status: "closed" }).eq("id", orderId).eq("status", "pending");
+        }
       }
-    } else if (tradeStatus === "TRADE_CLOSED") {
-      await supabase.from("orders").update({ status: "closed" }).eq("id", orderId).eq("status", "pending");
+    } catch (e) {
+      console.error("provider status check failed:", e);
     }
   }
 

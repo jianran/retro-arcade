@@ -258,7 +258,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 </main>
 
 <footer>
-  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for ¥7 in the Token Shop.</p>
+  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for $1 in the Token Shop.</p>
   <p><b>💡 Runs fully offline</b> — double-click <code>index.html</code> and play. Only Hogwarts Game Room (and the display fonts) need internet.</p>
   <p><b>🕵️ Clue Hunt multiplayer</b> — run <code>bash games/clue-hunt/start.sh</code> to start its server, then share the link it prints.</p>
   <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>8</code> launch games.</p>
@@ -282,12 +282,12 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
     <h2 class="shop-title">Token Shop</h2>
     <p class="shop-balance">You have <b>🪙 <span id="shopBalance">0</span></b></p>
     <p class="shop-info" id="shopInfo">5 free tokens arrive every morning — unused ones stack up.</p>
-    <button class="shop-buy" id="btnPay">💰 Buy 5 tokens — ¥7</button>
+    <button class="shop-buy" id="btnPay">💰 Buy 5 tokens — $1</button>
     <div class="shop-qr" id="shopQr" hidden>
       <div id="qrWrap"></div>
       <div id="qrStatic">
-        <img src="pay-qr.png" alt="Payment QR code — scan to pay ¥7">
-        <p>Scan with Alipay to pay ¥7.<br>Then tap “I've paid” below.</p>
+        <img src="pay-qr.png" alt="Payment QR code — scan to pay">
+        <p>Pay the owner $1 (this Alipay QR works too).<br>Then tap “I've paid” below.</p>
         <button class="shop-buy paid-btn" id="btnPaid">✅ I've paid — add my tokens</button>
       </div>
       <p class="qr-hint" id="qrHint"></p>
@@ -357,7 +357,7 @@ grid.innerHTML = GAMES.map(g => `
 
 /* ---- token system ----
    5 free tokens per day (unused ones stack up). Elemental Merge and Chaos Bug
-   Hunt cost 3, every other game costs 1. ¥7 buys 5 tokens in the Token Shop.
+   Hunt cost 3, every other game costs 1. $1 buys 5 tokens in the Token Shop.
    Server mode (public site): balances live in Supabase and the Buy button
    shows a live Alipay QR — tokens arrive automatically when the payment lands.
    Offline fallback (no backend configured or unreachable): the old
@@ -467,24 +467,13 @@ function loadQrLib(cb){
   s.onload = cb;
   document.head.appendChild(s);
 }
-function showDynamicQr(qrCode, orderId){
-  shopQr.hidden = false;
-  qrStatic.hidden = true;
-  qrWrap.innerHTML = "";
-  qrHint.textContent = "Scan with Alipay to pay ¥7 — the tokens appear automatically.";
-  setShopMsg("Waiting for payment…", "");
-  try {
-    const qr = qrcode(0, "M");
-    qr.addData(qrCode);
-    qr.make();
-    qrWrap.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
-  } catch (e){ /* fall back to text below */ }
+function pollOrder(orderId){
   stopOrderPoll();
   let tries = 0;
   orderPoll = setInterval(async () => {
-    if (++tries > 40){
+    if (++tries > 60){
       stopOrderPoll();
-      setShopMsg("Still waiting — the tokens will land as soon as Alipay confirms; just reopen the shop.", "err");
+      setShopMsg("Still waiting — the tokens will land as soon as the payment confirms; just reopen the shop.", "err");
       return;
     }
     try {
@@ -506,29 +495,56 @@ function showDynamicQr(qrCode, orderId){
     } catch (e){ /* transient network error — keep polling */ }
   }, 3000);
 }
+function showDynamicQr(qrCode, orderId){
+  shopQr.hidden = false;
+  qrStatic.hidden = true;
+  qrWrap.innerHTML = "";
+  qrHint.textContent = "Scan to pay — the tokens appear automatically.";
+  setShopMsg("Waiting for payment…", "");
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(qrCode);
+    qr.make();
+    qrWrap.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+  } catch (e){ /* fall back to text below */ }
+  pollOrder(orderId);
+}
+function showPayFlow(payUrl, orderId){
+  shopQr.hidden = false;
+  qrStatic.hidden = true;
+  qrWrap.innerHTML = "💳";
+  qrHint.textContent = "Complete the payment in the tab we just opened — your tokens appear automatically.";
+  setShopMsg("Waiting for payment…", "");
+  window.open(payUrl, "_blank", "noopener");
+  pollOrder(orderId);
+}
 function showStaticQr(){
   shopQr.hidden = false;
   qrStatic.hidden = false;
   qrWrap.innerHTML = "";
   qrHint.textContent = "";
-  setShopMsg("Scan with Alipay to pay ¥7 — then tap “I've paid”.", "ok");
+  setShopMsg("Pay the owner $1 — then tap “I've paid”.", "ok");
 }
 async function buyTokens(){
   if (backendOn || await sbInit()){
     try {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/buy`, {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/buy-paypal`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" },
         body: JSON.stringify({ device_id: deviceId() }),
       });
       if (r.ok){
         const d = await r.json();
-        loadQrLib(() => showDynamicQr(d.qr_code, d.order_id));
+        if (d.pay_url){
+          showPayFlow(d.pay_url, d.order_id);
+        } else if (d.qr_code){
+          loadQrLib(() => showDynamicQr(d.qr_code, d.order_id));
+        }
         return;
       }
-      // Backend is live but the payment provider failed (e.g. Alipay keys not
-      // set) → surface it; no honor-system fallback while balances are on
-      // the server, or purchases would silently not persist.
+      // Backend is live but the payment provider failed (e.g. keys not
+      // configured) → surface it; no honor-system fallback while balances are
+      // on the server, or purchases would silently not persist.
       qrStatic.hidden = true;
       qrHint.textContent = "Payments are being set up — check back soon!";
       setShopMsg("Payments are being set up — check back soon!", "err");
