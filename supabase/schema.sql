@@ -47,6 +47,9 @@ set search_path = public
 as $$
 declare bal integer;
 begin
+  if p_cost <= 0 then
+    return -1; -- never allow negative costs to credit tokens
+  end if;
   insert into players(device_id, tokens, last_daily)
   values (p_device, 5, current_date)
   on conflict (device_id) do update set

@@ -363,8 +363,8 @@ grid.innerHTML = GAMES.map(g => `
    Offline fallback (no backend configured or unreachable): the old
    localStorage wallet with signed top-up codes keeps working. */
 const DAILY = 5, BUY = 5;
-const SUPABASE_URL = "";   // e.g. https://xxxx.supabase.co  (filled during setup)
-const SUPABASE_ANON = "";  // the "anon public" key from Supabase → Settings → API
+const SUPABASE_URL = "";   // filled at go-live, together with the Alipay keys
+const SUPABASE_ANON = "";  // (backend schema + functions are already deployed)
 // Public verification key for offline top-up redeem strings. Codes are signed
 // by the arcade owner's private key (kept in the local topup.html generator,
 // not published), so nobody reading this source can forge one.
@@ -526,13 +526,14 @@ async function buyTokens(){
         loadQrLib(() => showDynamicQr(d.qr_code, d.order_id));
         return;
       }
-      if (r.status === 502){
-        qrStatic.hidden = true;
-        qrHint.textContent = "Payment provider is unavailable right now — try again later.";
-        setShopMsg("Payment provider is unavailable right now — try again later.", "err");
-        return;
-      }
-    } catch (e){ /* fall through to offline mode */ }
+      // Backend is live but the payment provider failed (e.g. Alipay keys not
+      // set) → surface it; no honor-system fallback while balances are on
+      // the server, or purchases would silently not persist.
+      qrStatic.hidden = true;
+      qrHint.textContent = "Payments are being set up — check back soon!";
+      setShopMsg("Payments are being set up — check back soon!", "err");
+      return;
+    } catch (e){ /* backend unreachable → full offline mode */ }
     backendOn = false;
   }
   showStaticQr();
