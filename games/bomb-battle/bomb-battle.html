@@ -1,0 +1,769 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Bomb Battle</title>
+<style>
+/* Design plan — a neon arcade court on a black void: yellow starfield, yellow
+   player paddle vs red CPU paddle, chunky Press Start 2P HUD. One dark look by
+   design; every color is set explicitly. */
+:root {
+  color-scheme: dark;
+  --void: #05050c;
+  --star: #ffe066;
+  --player: #ffd54a;
+  --cpu: #ff6b5e;
+  --accent: #ffe066;
+  --danger: #ff5c5c;
+  --text: #f5f0e0;
+  --dim: rgba(245, 240, 224, 0.55);
+  --frame: rgba(255, 224, 102, 0.16);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--void);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#game {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: 12px;
+  box-shadow: 0 0 70px rgba(255, 224, 102, 0.10), 0 0 0 1px var(--frame);
+  touch-action: none;
+  cursor: crosshair;
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<canvas id="game"></canvas>
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 900, H = 600;
+canvas.width = W; canvas.height = H;
+
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---- tuning ----
+const PADDLE_W = 16, PADDLE_H = 104;
+const PLAYER_X = 52;                  // player paddle on the left
+const CPU_X = W - 52 - PADDLE_W;      // cpu paddle on the right
+const BOMB_R = 13;
+const PLAYER_SPEED = 340;             // px/s
+const CPU_SPEED = PLAYER_SPEED * 0.75;
+const TIMER_MAX = 10;
+const BASE_BOMB_SPEED = 300;
+const MAX_BOMB_SPEED = 680;
+const SPEED_GROWTH = 1.055;
+const MAX_LIVES = 3;
+
+const C = {
+  bg: '#05050c',
+  star: '#ffe066', starSoft: '#fff3c4',
+  player: '#ffd54a', playerDark: '#a87f1c',
+  cpu: '#ff6b5e', cpuDark: '#9c3a32',
+  text: '#f5f0e0', dim: 'rgba(245,240,224,.55)',
+  side: 'rgba(255,224,102,.05)',
+  line: 'rgba(255,224,102,.14)',
+  ringIdle: 'rgba(255,255,255,.09)',
+  timerHi: '#9fe870', timerMid: '#ffb454', timerLo: '#ff5c5c',
+  num: '#ffe066', numLo: '#ff8a7a',
+};
+
+const F = (px) => px + 'px "Press Start 2P", monospace';
+
+// ---- state ----
+let state = 'title';                  // title | serve | play | over
+let t = 0;
+let lives = { player: MAX_LIVES, cpu: MAX_LIVES };
+let timer = TIMER_MAX, timerActive = false, lastTickSec = 99;
+let serveSide = -1, serveDelay = 0;
+let winnerName = null;
+let player = { y: H / 2 - PADDLE_H / 2 };
+let cpu = { y: H / 2 - PADDLE_H / 2 };
+let cpuJitter = 0, cpuJitterT = 0;
+let bomb = { x: W / 2, y: H / 2, vx: 0, vy: 0, speed: BASE_BOMB_SPEED, spin: 0 };
+let particles = [];
+let shockwaves = [];
+let boomText = null;
+let hurt = null;                      // { side, t }
+let shakeT = 0;
+let soundToast = null;
+let pointer = { active: false, y: 0 };
+const keys = { up: false, down: false };
+
+// ---- starfield ----
+const stars = [];
+for (let i = 0; i < 90; i++) {
+  stars.push({
+    x: Math.random() * W, y: Math.random() * H,
+    r: 0.6 + Math.random() * 1.3,
+    ph: Math.random() * Math.PI * 2, sp: 0.6 + Math.random() * 2.2,
+    cross: false,
+  });
+}
+for (let i = 0; i < 10; i++) {
+  const s = stars[(Math.random() * 90) | 0];
+  s.cross = true; s.r = 1.6 + Math.random() * 1.2;
+}
+
+// ---- helpers ----
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// ---- audio ----
+const audio = { ctx: null, muted: false };
+function initAudio() {
+  if (!audio.ctx) {
+    try { audio.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  }
+  if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+}
+function beep(freq, dur, type, vol, slideTo, when) {
+  if (audio.muted || !audio.ctx) return;
+  const c = audio.ctx, t0 = c.currentTime + (when || 0);
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(vol || 0.12, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(c.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noise(dur, vol, when) {
+  if (audio.muted || !audio.ctx) return;
+  const c = audio.ctx, t0 = c.currentTime + (when || 0);
+  const len = Math.floor(c.sampleRate * dur);
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = c.createBufferSource(); src.buffer = buf;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+  const g = c.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(c.destination);
+  src.start(t0);
+}
+const hitSound = (speed) => beep(300 + speed * 0.9, 0.07, 'square', 0.09, 660);
+const wallSound = () => beep(200, 0.05, 'square', 0.05);
+const tickSound = () => beep(1100, 0.04, 'square', 0.05);
+function explosionSound() { noise(0.4, 0.32); beep(140, 0.35, 'sawtooth', 0.16, 40); }
+function winSound() {
+  beep(523, 0.12, 'square', 0.1, null, 0);
+  beep(659, 0.12, 'square', 0.1, null, 0.13);
+  beep(784, 0.22, 'square', 0.1, null, 0.26);
+}
+function loseSound() {
+  beep(392, 0.16, 'square', 0.1, null, 0);
+  beep(311, 0.16, 'square', 0.1, null, 0.17);
+  beep(233, 0.3, 'square', 0.1, null, 0.34);
+}
+function toggleMute() {
+  audio.muted = !audio.muted;
+  soundToast = { text: audio.muted ? 'SOUND OFF' : 'SOUND ON', t: 1.2 };
+}
+
+// ---- effects ----
+function spawnParticles(x, y, n, pow) {
+  const colors = ['#ffd54a', '#ff9b3d', '#ff5c5c', '#fff3c4'];
+  for (let i = 0; i < (n || 46); i++) {
+    const a = Math.random() * Math.PI * 2, v = rnd(0.15, 1) * (pow || 340);
+    const life = rnd(0.4, 1.0);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40,
+      life, maxLife: life,
+      size: rnd(2, 5),
+      color: colors[(Math.random() * colors.length) | 0],
+    });
+  }
+}
+
+// ---- game flow ----
+function paddleHit(side) {             // side < 0: player, > 0: cpu
+  const py = side < 0 ? player.y : cpu.y;
+  const px = side < 0 ? PLAYER_X : CPU_X;
+  const off = clamp((bomb.y - (py + PADDLE_H / 2)) / (PADDLE_H / 2), -1, 1);
+  bomb.speed = Math.min(bomb.speed * SPEED_GROWTH, MAX_BOMB_SPEED);
+  const ang = off * 0.85;              // max ~49 deg
+  bomb.vx = (side < 0 ? 1 : -1) * bomb.speed * Math.cos(ang);
+  bomb.vy = bomb.speed * Math.sin(ang) + bomb.vy * 0.15;
+  bomb.x = side < 0 ? px + PADDLE_W + BOMB_R + 0.5 : px - BOMB_R - 0.5;
+  hitSound(bomb.speed);
+  spawnParticles(side < 0 ? px + PADDLE_W : px, bomb.y, 7, 150);
+}
+
+function loseLife(who, x, y, reason) {
+  lives[who]--;
+  boomText = {
+    text: reason === 'timer' ? "TIME'S UP!" : 'BOOM!',
+    x: clamp(x, 90, W - 90), y: clamp(y, 90, H - 90),
+    t: 1.1, maxT: 1.1,
+  };
+  spawnParticles(x, y);
+  shockwaves.push({ x, y, r: 8, vr: 520, life: 0.5, maxLife: 0.5 });
+  shakeT = 0.35;
+  hurt = { side: who === 'player' ? -1 : 1, t: 0.6 };
+  explosionSound();
+  if (lives[who] <= 0) {
+    gameOver(who === 'player' ? 'cpu' : 'player');
+  } else {
+    startServe(who === 'player' ? -1 : 1);
+  }
+}
+
+function startServe(side) {            // serve toward the side that just lost
+  state = 'serve';
+  serveSide = side;
+  bomb.x = W / 2;
+  bomb.y = H / 2 + rnd(-70, 70);
+  bomb.vx = 0; bomb.vy = 0;
+  bomb.speed = BASE_BOMB_SPEED;
+  bomb.spin = 0;
+  serveDelay = 1.15;
+  timer = TIMER_MAX; timerActive = false; lastTickSec = 99;
+}
+
+function gameOver(winner) {
+  state = 'over';
+  winnerName = winner === 'player' ? 'YOU' : 'CPU';
+  if (winner === 'player') winSound(); else loseSound();
+}
+
+function startGame() {
+  lives.player = MAX_LIVES; lives.cpu = MAX_LIVES;
+  player.y = H / 2 - PADDLE_H / 2;
+  cpu.y = H / 2 - PADDLE_H / 2;
+  particles = []; shockwaves = []; boomText = null; hurt = null;
+  winnerName = null;
+  startServe(Math.random() < 0.5 ? -1 : 1);
+}
+
+// ---- update ----
+function movePlayer(dt) {
+  let dir = 0;
+  if (keys.up) dir -= 1;
+  if (keys.down) dir += 1;
+  if (pointer.active) {
+    const diff = (pointer.y - PADDLE_H / 2) - player.y;
+    player.y += clamp(diff, -PLAYER_SPEED * 1.2 * dt, PLAYER_SPEED * 1.2 * dt);
+  } else {
+    player.y += dir * PLAYER_SPEED * dt;
+  }
+  player.y = clamp(player.y, 12, H - 12 - PADDLE_H);
+}
+
+function moveCpu(dt) {
+  let target;
+  if (bomb.vx > 0) {                   // bomb incoming: track it (with wobble)
+    cpuJitterT -= dt;
+    if (cpuJitterT <= 0) { cpuJitterT = rnd(0.4, 0.75); cpuJitter = rnd(-34, 34); }
+    target = bomb.y - PADDLE_H / 2 + cpuJitter;
+  } else {                             // bomb away: recenter
+    target = H / 2 - PADDLE_H / 2;
+  }
+  const diff = target - cpu.y;
+  cpu.y += clamp(diff, -CPU_SPEED * dt, CPU_SPEED * dt);
+  cpu.y = clamp(cpu.y, 12, H - 12 - PADDLE_H);
+}
+
+function update(dt) {
+  t += dt;
+  if (shakeT > 0) shakeT -= dt;
+  if (hurt) { hurt.t -= dt; if (hurt.t <= 0) hurt = null; }
+  if (boomText) { boomText.t -= dt; if (boomText.t <= 0) boomText = null; }
+  if (soundToast) { soundToast.t -= dt; if (soundToast.t <= 0) soundToast = null; }
+  particles = particles.filter(p => (p.life -= dt) > 0);
+  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; }
+  shockwaves = shockwaves.filter(s => (s.life -= dt) > 0);
+  for (const s of shockwaves) s.r += s.vr * dt;
+
+  if (state === 'serve') {
+    movePlayer(dt);
+    cpu.y += clamp((H / 2 - PADDLE_H / 2) - cpu.y, -CPU_SPEED * 0.5 * dt, CPU_SPEED * 0.5 * dt);
+    serveDelay -= dt;
+    if (serveDelay <= 0) {
+      const ang = rnd(0.35, 0.8);
+      bomb.vx = Math.cos(ang) * bomb.speed * serveSide;
+      bomb.vy = Math.sin(ang) * bomb.speed * (Math.random() < 0.5 ? -1 : 1);
+      state = 'play';
+      timerActive = true;
+      lastTickSec = Math.ceil(timer);
+    }
+  } else if (state === 'play') {
+    movePlayer(dt);
+    moveCpu(dt);
+    const prevX = bomb.x;
+    bomb.x += bomb.vx * dt;
+    bomb.y += bomb.vy * dt;
+    bomb.spin += (bomb.vx > 0 ? 1 : -1) * dt * 3.2;
+    if (bomb.y - BOMB_R < 12) { bomb.y = 12 + BOMB_R; bomb.vy = Math.abs(bomb.vy); wallSound(); }
+    if (bomb.y + BOMB_R > H - 12) { bomb.y = H - 12 - BOMB_R; bomb.vy = -Math.abs(bomb.vy); wallSound(); }
+    const crossedL = bomb.vx < 0 && prevX - BOMB_R > PLAYER_X + PADDLE_W && bomb.x - BOMB_R <= PLAYER_X + PADDLE_W;
+    const crossedR = bomb.vx > 0 && prevX + BOMB_R < CPU_X && bomb.x + BOMB_R >= CPU_X;
+    if (crossedL && bomb.y + BOMB_R >= player.y && bomb.y - BOMB_R <= player.y + PADDLE_H) paddleHit(-1);
+    else if (crossedR && bomb.y + BOMB_R >= cpu.y && bomb.y - BOMB_R <= cpu.y + PADDLE_H) paddleHit(1);
+    if (bomb.x - BOMB_R <= 0) loseLife('player', 4, bomb.y, 'wall');
+    else if (bomb.x + BOMB_R >= W) loseLife('cpu', W - 4, bomb.y, 'wall');
+    if (state === 'play' && timerActive) {
+      timer -= dt;
+      const sec = Math.ceil(timer);
+      if (sec !== lastTickSec) {
+        lastTickSec = sec;
+        if (sec <= 3 && sec >= 1) tickSound();
+      }
+      if (timer <= 0) {
+        timer = 0;
+        loseLife(bomb.x < W / 2 ? 'player' : 'cpu', bomb.x, bomb.y, 'timer');
+      }
+    }
+    if (!REDUCED && bomb.speed > 420 && Math.random() < 0.4) {
+      particles.push({
+        x: bomb.x + rnd(-3, 3), y: bomb.y + rnd(-3, 3),
+        vx: -bomb.vx * 0.06, vy: -bomb.vy * 0.06,
+        life: 0.25, maxLife: 0.25,
+        size: rnd(1.5, 3), color: '#ffb454',
+      });
+    }
+  } else if (state === 'title') {
+    cpu.y += clamp((H / 2 - PADDLE_H / 2) - cpu.y, -CPU_SPEED * 0.5 * dt, CPU_SPEED * 0.5 * dt);
+  }
+}
+
+// ---- drawing ----
+function draw() {
+  ctx.save();
+  if (!REDUCED && shakeT > 0) {
+    const m = 7 * (shakeT / 0.35);
+    ctx.translate(rnd(-m, m), rnd(-m, m));
+  }
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(-12, -12, W + 24, H + 24);
+  drawStars();
+  drawCourt();
+  if (hurt) drawHurt();
+  drawPaddle(PLAYER_X, player.y, C.player, C.playerDark, false);
+  drawPaddle(CPU_X, cpu.y, C.cpu, C.cpuDark, true);
+  if (state !== 'title') drawBombEntity();
+  drawParticles();
+  drawShockwaves();
+  drawVignette();
+  drawHud();
+  if (boomText) drawBoomText();
+  if (state === 'title') drawTitle();
+  if (state === 'over') drawOver();
+  if (soundToast) drawToast();
+  ctx.restore();
+}
+
+function drawStars() {
+  for (const s of stars) {
+    const tw = REDUCED ? 0.7 : 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.sp + s.ph));
+    ctx.globalAlpha = tw;
+    ctx.fillStyle = s.cross ? C.starSoft : C.star;
+    if (s.cross) {
+      ctx.fillRect(s.x - s.r * 3, s.y - 0.5, s.r * 6, 1);
+      ctx.fillRect(s.x - 0.5, s.y - s.r * 3, 1, s.r * 6);
+    } else {
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCourt() {
+  // highlight the half currently holding the bomb
+  if (state === 'play' || state === 'serve') {
+    ctx.fillStyle = C.side;
+    ctx.fillRect(bomb.x < W / 2 ? 0 : W / 2, 0, W / 2, H);
+  }
+  // center line + center circle
+  ctx.strokeStyle = C.line;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 13]);
+  ctx.beginPath(); ctx.moveTo(W / 2, 16); ctx.lineTo(W / 2, H - 16); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(W / 2, H / 2, 38, 0, Math.PI * 2); ctx.stroke();
+  drawWall(0, -1);
+  drawWall(W, 1);
+}
+
+function drawWall(x, dir) {
+  const near = state === 'play' && (dir < 0 ? bomb.x < 110 : bomb.x > W - 110);
+  const a = REDUCED ? 0.5 : near ? 0.45 + 0.4 * Math.sin(t * 13) : 0.22;
+  const g = ctx.createLinearGradient(x, 0, x - dir * 30, 0);
+  g.addColorStop(0, 'rgba(255,223,128,' + a.toFixed(3) + ')');
+  g.addColorStop(1, 'rgba(255,223,128,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(dir < 0 ? 0 : W - 30, 0, 30, H);
+}
+
+function drawHurt() {
+  const a = clamp(hurt.t / 0.6, 0, 1) * 0.26;
+  const g = ctx.createLinearGradient(hurt.side < 0 ? 0 : W, 0, W / 2, 0);
+  g.addColorStop(0, 'rgba(255,92,92,' + a.toFixed(3) + ')');
+  g.addColorStop(1, 'rgba(255,92,92,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(hurt.side < 0 ? 0 : W / 2, 0, W / 2, H);
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawPaddle(x, y, color, dark, handleRight) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16;
+  // handle pointing at the back wall
+  ctx.fillStyle = dark;
+  roundRect(handleRight ? x + PADDLE_W - 5 : x - 3, y + PADDLE_H * 0.32, 8, PADDLE_H * 0.36, 4);
+  ctx.fill();
+  // face
+  ctx.fillStyle = color;
+  roundRect(x, y, PADDLE_W, PADDLE_H, 8);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,.28)';
+  ctx.lineWidth = 1;
+  roundRect(x + 1.5, y + 1.5, PADDLE_W - 3, PADDLE_H - 3, 7);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBomb(x, y, r, scale, spin, time) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(spin * 0.4);
+  ctx.scale(scale, scale);
+  // glow
+  const g = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 2.3);
+  g.addColorStop(0, 'rgba(255,210,80,.22)');
+  g.addColorStop(1, 'rgba(255,210,80,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, r * 2.3, 0, Math.PI * 2); ctx.fill();
+  // body
+  const body = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r);
+  body.addColorStop(0, '#62626e');
+  body.addColorStop(0.55, '#34343d');
+  body.addColorStop(1, '#14141a');
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = 'rgba(255,255,255,.15)';
+  ctx.stroke();
+  // highlight
+  ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.35, r * 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,.32)';
+  ctx.fill();
+  // fuse
+  ctx.strokeStyle = '#c9a06a';
+  ctx.lineWidth = 2.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(r * 0.25, -r * 0.55);
+  ctx.quadraticCurveTo(r * 0.8, -r * 1.05, r * 0.45, -r * 1.3);
+  ctx.stroke();
+  // spark
+  const fl = REDUCED ? 0.5 : 0.5 + 0.5 * Math.sin(time * 19);
+  const sx = r * 0.45, sy = -r * 1.3;
+  const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 7 + fl * 4.5);
+  sg.addColorStop(0, 'rgba(255,255,240,.95)');
+  sg.addColorStop(0.4, 'rgba(255,210,80,.8)');
+  sg.addColorStop(1, 'rgba(255,150,40,0)');
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.arc(sx, sy, 7 + fl * 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,230,140,.9)';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 4; i++) {
+    const a = time * 2 + i * Math.PI / 2;
+    const r1 = 3 + fl * 3, r2 = 8.5 + fl * 5;
+    ctx.beginPath();
+    ctx.moveTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1);
+    ctx.lineTo(sx + Math.cos(a) * r2, sy + Math.sin(a) * r2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBombEntity() {
+  if (state === 'serve') {
+    const p = 1 + 0.08 * Math.sin(t * 9);
+    drawBomb(bomb.x, bomb.y, BOMB_R, p, bomb.spin, t);
+    drawServeArrow();
+    return;
+  }
+  drawBomb(bomb.x, bomb.y, BOMB_R, 1, bomb.spin, t);
+}
+
+function drawServeArrow() {
+  const a = 0.35 + 0.3 * Math.sin(t * 6);
+  const x0 = bomb.x + serveSide * (BOMB_R + 26);
+  const x1 = bomb.x + serveSide * (BOMB_R + 52);
+  ctx.strokeStyle = 'rgba(255,224,102,' + a.toFixed(3) + ')';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x0, bomb.y); ctx.lineTo(x1, bomb.y); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,224,102,' + a.toFixed(3) + ')';
+  ctx.beginPath();
+  ctx.moveTo(x1 + serveSide * 8, bomb.y);
+  ctx.lineTo(x1, bomb.y - 6); ctx.lineTo(x1, bomb.y + 6);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = clamp(p.life / p.maxLife, 0, 1);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.4 + 0.6 * a), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawShockwaves() {
+  for (const s of shockwaves) {
+    ctx.globalAlpha = clamp(s.life / s.maxLife, 0, 1) * 0.8;
+    ctx.strokeStyle = C.star;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawVignette() {
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.95);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,.38)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawHud() {
+  ctx.textBaseline = 'top';
+  // player side
+  ctx.font = F(12);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = C.player;
+  ctx.fillText('YOU', 26, 26);
+  for (let i = 0; i < MAX_LIVES; i++) {
+    const x = 36 + i * 26;
+    if (i < lives.player) drawBomb(x, 58, 8, 0.8, 0, t + i * 0.9);
+    else {
+      ctx.strokeStyle = 'rgba(255,255,255,.18)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, 58, 8, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  // cpu side
+  ctx.textAlign = 'right';
+  ctx.fillStyle = C.cpu;
+  ctx.fillText('CPU', W - 26, 26);
+  for (let i = 0; i < MAX_LIVES; i++) {
+    const x = W - 36 - i * 26;
+    if (i < lives.cpu) drawBomb(x, 58, 8, 0.8, 0, t + i * 0.9);
+    else {
+      ctx.strokeStyle = 'rgba(255,255,255,.18)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, 58, 8, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  // countdown ring
+  const cx = W / 2, cy = 48, R = 23, lw = 6;
+  const frac = timerActive ? clamp(timer / TIMER_MAX, 0, 1) : 1;
+  const secs = Math.ceil(timer);
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = C.ringIdle;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  if (timerActive) {
+    ctx.strokeStyle = frac > 0.5 ? C.timerHi : frac > 0.3 ? C.timerMid : C.timerLo;
+    ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); ctx.stroke();
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = timerActive ? (secs <= 3 ? C.numLo : C.num) : 'rgba(255,224,102,.35)';
+  const scale = !REDUCED && timerActive && secs <= 3 ? 1 + 0.1 * Math.sin(t * 11) : 1;
+  ctx.save();
+  ctx.translate(cx, cy + 3);
+  ctx.scale(scale, scale);
+  ctx.font = F(16);
+  ctx.fillText(String(secs), 0, 0);
+  ctx.restore();
+  ctx.font = F(8);
+  ctx.fillStyle = 'rgba(245,240,224,.4)';
+  ctx.fillText('TIMER', cx, cy + 27);
+}
+
+function drawBoomText() {
+  const a = clamp(boomText.t / boomText.maxT, 0, 1);
+  const s = 1 + 0.35 * (1 - a);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, a * 1.6);
+  ctx.translate(boomText.x, boomText.y);
+  ctx.scale(s, s);
+  ctx.font = F(30);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = C.player;
+  ctx.shadowColor = '#ff9b3d';
+  ctx.shadowBlur = 22;
+  ctx.fillText(boomText.text, 0, 0);
+  ctx.restore();
+}
+
+function drawTitle() {
+  ctx.fillStyle = 'rgba(4,4,12,.8)';
+  ctx.fillRect(0, 0, W, H);
+  drawBomb(W / 2, 208 + Math.sin(t * 2.6) * 10, BOMB_R, 2, t * 0.4, t);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = F(44);
+  ctx.fillStyle = C.player;
+  ctx.shadowColor = '#b8860b';
+  ctx.shadowBlur = 26;
+  ctx.fillText('BOMB BATTLE', W / 2, 322);
+  ctx.shadowBlur = 0;
+  ctx.font = F(11);
+  ctx.fillStyle = 'rgba(245,240,224,.75)';
+  const lines = [
+    'YOU VS CPU — 3 LIVES EACH',
+    'W/S OR UP/DOWN ARROWS TO MOVE YOUR RACKET',
+    'IF THE BOMB HITS YOUR BACK WALL, YOU LOSE A LIFE',
+    'WHEN THE TIMER HITS 0, THE SIDE HOLDING',
+    'THE BOMB LOSES A LIFE',
+    'CPU MOVES AT 75% OF YOUR SPEED',
+  ];
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], W / 2, 386 + i * 26);
+  ctx.font = F(12);
+  ctx.fillStyle = 'rgba(255,224,102,' + (0.45 + 0.55 * Math.sin(t * 5)).toFixed(2) + ')';
+  ctx.fillText('PRESS SPACE OR TAP TO START', W / 2, 566);
+}
+
+function drawOver() {
+  ctx.fillStyle = 'rgba(4,4,12,.82)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = F(38);
+  ctx.fillStyle = winnerName === 'YOU' ? C.player : C.cpu;
+  ctx.shadowColor = winnerName === 'YOU' ? '#b8860b' : '#8b1a12';
+  ctx.shadowBlur = 26;
+  ctx.fillText(winnerName + ' WIN!', W / 2, H / 2 - 40);
+  ctx.shadowBlur = 0;
+  ctx.font = F(12);
+  ctx.fillStyle = 'rgba(245,240,224,' + (0.5 + 0.5 * Math.sin(t * 5)).toFixed(2) + ')';
+  ctx.fillText('PRESS SPACE OR TAP TO REMATCH', W / 2, H / 2 + 30);
+  ctx.font = F(9);
+  ctx.fillStyle = 'rgba(245,240,224,.4)';
+  ctx.fillText('FINAL LIVES  ' + lives.player + ' - ' + lives.cpu, W / 2, H / 2 + 66);
+}
+
+function drawToast() {
+  ctx.globalAlpha = clamp(soundToast.t / 1.2, 0, 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = F(10);
+  ctx.fillStyle = C.dim;
+  ctx.fillText(soundToast.text + '  (M)', W / 2, H - 26);
+  ctx.globalAlpha = 1;
+}
+
+// ---- input ----
+window.addEventListener('keydown', (e) => {
+  if (['ArrowUp', 'ArrowDown', 'Space', 'Spacebar'].includes(e.code)) e.preventDefault();
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = true;
+  if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = true;
+  if (e.code === 'Space' || e.code === 'Enter') {
+    initAudio();
+    if (state === 'title' || state === 'over') startGame();
+  }
+  if (e.code === 'KeyM') { initAudio(); toggleMute(); }
+  if (e.code === 'KeyR' && state !== 'title') startGame();
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = false;
+  if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = false;
+});
+window.addEventListener('blur', () => { keys.up = false; keys.down = false; });
+
+function pointerPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return (e.clientY - rect.top) * (H / rect.height);
+}
+canvas.addEventListener('pointerdown', (e) => {
+  initAudio();
+  if (state === 'title' || state === 'over') { startGame(); return; }
+  pointer.active = true;
+  pointer.y = pointerPos(e);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (pointer.active) pointer.y = pointerPos(e);
+});
+window.addEventListener('pointerup', () => { pointer.active = false; });
+window.addEventListener('pointercancel', () => { pointer.active = false; });
+
+// ---- main loop + hot reload ----
+function snapshot() {
+  return {
+    state, winnerName,
+    lives: { player: lives.player, cpu: lives.cpu },
+    timer, timerActive, serveSide, serveDelay,
+    player: player.y, cpu: cpu.y,
+    bomb: { x: bomb.x, y: bomb.y, vx: bomb.vx, vy: bomb.vy, speed: bomb.speed, spin: bomb.spin },
+  };
+}
+
+let last = 0;
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function start(data) {
+  if (data && data.state) {
+    state = data.state;
+    winnerName = data.winnerName;
+    if (data.lives) lives = data.lives;
+    if (typeof data.timer === 'number') timer = data.timer;
+    timerActive = !!data.timerActive;
+    if (typeof data.serveSide === 'number') serveSide = data.serveSide;
+    if (typeof data.serveDelay === 'number') serveDelay = data.serveDelay;
+    if (typeof data.player === 'number') player.y = data.player;
+    if (typeof data.cpu === 'number') cpu.y = data.cpu;
+    if (data.bomb) Object.assign(bomb, data.bomb);
+  }
+  last = performance.now();
+  requestAnimationFrame(frame);
+}
+
+if (window.claude && window.claude.hot) {
+  window.claude.hot.snapshot(snapshot);
+  if (window.claude.hot.ready) window.claude.hot.ready(start);
+  else start(window.claude.hot.data || {});
+} else {
+  start({});
+}
+})();
+</script>

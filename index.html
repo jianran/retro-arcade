@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retro Arcade — 8 Games, One Cabinet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- media="print" + onload keeps the stylesheet from blocking the page's JS when
+     Google Fonts is slow or unreachable; it flips to normal once it loads -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+:root{
+  --bg:#07060f; --bg2:#0d0b1d;
+  --text:#ece9ff; --dim:#9a93c2; --faint:#5c5680;
+  --panel:rgba(255,255,255,.045);
+  --border:rgba(255,255,255,.10);
+  --pink:#ff4fd8; --cyan:#2ee6ff; --gold:#ffd166;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:
+    radial-gradient(1200px 500px at 50% -120px, rgba(123,47,247,.22), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Space Grotesk',system-ui,-apple-system,sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* ---- ambience ---- */
+.glow{position:fixed;border-radius:50%;filter:blur(90px);opacity:.30;pointer-events:none;z-index:0}
+.glow-1{width:520px;height:520px;background:#7b2ff7;top:-180px;left:-140px;animation:drift 16s ease-in-out infinite alternate}
+.glow-2{width:460px;height:460px;background:#00c8ff;bottom:-160px;right:-120px;animation:drift 20s ease-in-out infinite alternate-reverse}
+.glow-3{width:380px;height:380px;background:#ff2fa0;top:38%;left:62%;animation:drift 24s ease-in-out infinite alternate}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(60px,-40px) scale(1.15)}}
+.scanlines{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:.45;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px)}
+.vignette{position:fixed;inset:0;z-index:4;pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%)}
+header,main,footer{position:relative;z-index:5}
+
+/* ---- header ---- */
+header{text-align:center;padding:64px 20px 8px}
+.kicker{color:var(--gold);font-size:12px;letter-spacing:8px;text-transform:uppercase;
+  animation:blink 1.6s steps(2,start) infinite}
+@keyframes blink{50%{opacity:.25}}
+h1{
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(26px,6vw,54px);
+  margin:26px 0 0;
+  line-height:1.25;
+  text-shadow:0 0 10px rgba(255,79,216,.75),0 0 34px rgba(255,79,216,.35);
+  animation:flicker 7s infinite;
+}
+h1 .accent{
+  background:linear-gradient(90deg,var(--pink),var(--cyan));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  text-shadow:none;
+  filter:drop-shadow(0 0 14px rgba(46,230,255,.45));
+}
+@keyframes flicker{
+  0%,100%{opacity:1}
+  92%{opacity:1} 93%{opacity:.7} 94%{opacity:1}
+  97%{opacity:.85} 98%{opacity:1}
+}
+.sub{margin-top:18px;color:var(--dim);font-size:13px;letter-spacing:5px;text-transform:uppercase}
+
+/* ---- game grid ---- */
+main{max-width:1180px;margin:0 auto;padding:44px 20px 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(262px,1fr));gap:18px}
+.card{
+  --accent:#fff;
+  position:relative;display:flex;flex-direction:column;gap:12px;
+  background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.015));
+  border:1px solid var(--border);border-radius:16px;
+  padding:20px 18px 18px;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+}
+.card:hover{
+  transform:translateY(-5px);
+  border-color:color-mix(in srgb,var(--accent) 55%,transparent);
+  box-shadow:0 16px 44px rgba(0,0,0,.5),0 0 26px color-mix(in srgb,var(--accent) 22%,transparent);
+}
+.tile{
+  width:58px;height:58px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;line-height:1;
+  background:radial-gradient(circle at 30% 25%, color-mix(in srgb,var(--accent) 26%,transparent), color-mix(in srgb,var(--accent) 7%,transparent));
+  border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);
+  box-shadow:0 0 18px color-mix(in srgb,var(--accent) 30%,transparent), inset 0 0 14px color-mix(in srgb,var(--accent) 12%,transparent);
+}
+h2{
+  font-family:'Press Start 2P',monospace;
+  font-size:13px;line-height:1.8;margin:0;
+  text-shadow:0 0 14px color-mix(in srgb,var(--accent) 45%,transparent);
+}
+.tag{color:var(--dim);font-size:14px;line-height:1.55;margin:0;flex-grow:1}
+.badges{display:flex;flex-wrap:wrap;gap:6px}
+.badge{
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--accent);
+  border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);
+  border-radius:99px;padding:3px 9px;
+  background:color-mix(in srgb,var(--accent) 8%,transparent);
+}
+.actions{display:flex;gap:8px}
+.actions button{
+  font-family:'Space Grotesk',sans-serif;
+  border-radius:10px;padding:10px 0;cursor:pointer;
+  font-weight:700;font-size:13px;letter-spacing:1.5px;
+  transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;
+}
+.btn-play{
+  flex:1;border:0;color:#0a0a14;background:var(--accent);
+  box-shadow:0 0 18px color-mix(in srgb,var(--accent) 35%,transparent);
+}
+.btn-play:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.btn-play:active{transform:translateY(0)}
+.btn-open{
+  background:transparent;color:var(--dim);border:1px solid var(--border);
+  padding-left:14px;padding-right:14px;
+}
+.btn-open:hover{color:var(--text);border-color:var(--dim);transform:translateY(-1px)}
+
+/* ---- footer ---- */
+footer{max-width:1180px;margin:0 auto;padding:26px 20px 48px;color:var(--dim);font-size:13px;line-height:2;border-top:1px solid var(--border)}
+footer b{color:var(--text);font-weight:700}
+footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;padding:1px 7px;font-size:12px;color:var(--gold)}
+
+/* ---- player overlay ---- */
+.player{position:fixed;inset:0;z-index:80;background:#05040c;display:flex;flex-direction:column}
+.player[hidden]{display:none}
+.player-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0b0918;border-bottom:1px solid var(--border);flex-shrink:0}
+.player-title{flex:1;text-align:center;font-family:'Press Start 2P',monospace;font-size:11px;color:var(--accent);text-shadow:0 0 14px color-mix(in srgb,var(--accent) 55%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-btn{
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:11px;letter-spacing:1.5px;
+  background:transparent;border:1px solid var(--border);color:var(--dim);
+  border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap;
+  transition:color .15s,border-color .15s,transform .12s;
+}
+.bar-btn:hover{color:var(--text);border-color:var(--dim);transform:translateY(-1px)}
+.bar-btn.exit:hover{color:#ff6b6b;border-color:#ff6b6b}
+.frame{flex:1;position:relative;min-height:0;background:#000}
+#frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.loader{
+  position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;
+  background:#05040c;color:var(--dim);
+  font-family:'Press Start 2P',monospace;font-size:14px;letter-spacing:3px;
+  animation:blink 1s steps(2,start) infinite;
+}
+.loader[hidden]{display:none}
+.player-hint{text-align:center;padding:7px 10px;font-size:11px;color:var(--faint);flex-shrink:0}
+
+@media (prefers-reduced-motion: reduce){
+  .glow,.kicker,.loader{animation:none}
+  h1{animation:none}
+}
+</style>
+</head>
+<body>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+<div class="glow glow-3"></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<header>
+  <div class="kicker">★ Insert Coin ★</div>
+  <h1>RETRO <span class="accent">ARCADE</span></h1>
+  <p class="sub">8 Games · One Cabinet</p>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+</main>
+
+<footer>
+  <p><b>💡 Runs fully offline</b> — double-click <code>index.html</code> and play. Only Hogwarts Game Room (and the display fonts) need internet.</p>
+  <p><b>🕵️ Clue Hunt multiplayer</b> — run <code>bash games/clue-hunt/start.sh</code> to start its server, then share the link it prints.</p>
+  <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>8</code> launch games.</p>
+</footer>
+
+<div class="player" id="player" hidden>
+  <div class="player-bar" style="--accent:#fff">
+    <button class="bar-btn exit" id="btnExit">✕ EXIT</button>
+    <div class="player-title" id="playerTitle"></div>
+    <button class="bar-btn" id="btnNewTab">↗ NEW TAB</button>
+  </div>
+  <div class="frame">
+    <div class="loader" id="loader">Loading…</div>
+    <iframe id="frame" allow="autoplay; fullscreen; gamepad; encrypted-media" allowfullscreen title="Game"></iframe>
+  </div>
+  <div class="player-hint">ESC exits · the game's own keys work inside the window</div>
+</div>
+
+<script>
+"use strict";
+const GAMES = [
+  {id:"dice",      name:"Dice & Boxes Duel",  icon:"🎲", accent:"#ff6b6b", url:"games/dots-and-boxes/dots-and-boxes.html",
+   tag:"Hotseat two-player board duel — roll the dice, grab boxes, outscore your rival.", badges:["2P Hotseat"]},
+  {id:"elemental", name:"Elemental Merge",    icon:"🧪", accent:"#4ade80", url:"games/elemental-merge/index.html",
+   tag:"Merge elemental units, fight waves, defend your base.", badges:["Strategy"]},
+  {id:"bomb",      name:"Bomb Battle",        icon:"💣", accent:"#ffe066", url:"games/bomb-battle/bomb-battle.html",
+   tag:"Neon paddle duel versus the CPU on a black-void court.", badges:["VS CPU"]},
+  {id:"clue",      name:"Clue Hunt",          icon:"🕵️", accent:"#00e5ff", url:"games/clue-hunt/clue_hunt.html",
+   tag:"A terminal mystery — follow the clues, explore the locations, crack the case.", badges:["Mystery","LAN Server"]},
+  {id:"tower",     name:"GameTower",          icon:"🗼", accent:"#b18cff", url:"games/game-tower/index.html",
+   tag:"Climb 20 floors of arcade challenges — 3 lives for the whole run.", badges:["20 Floors"]},
+  {id:"bug",       name:"Chaos Bug Hunt",     icon:"🐛", accent:"#a3e635", url:"games/bug-hunter/bug-hunter.html",
+   tag:"Fly the jet, hunt the bugs, dodge the stalkers, beat the boss.", badges:["Shooter"]},
+  {id:"hogwarts",  name:"Hogwarts Game Room", icon:"🧙", accent:"#ff9f43", url:"https://jianran.github.io/hogwarts-game-room/",
+   tag:"Wizarding-world mini-games, played straight from the web.", badges:["Online"]},
+  {id:"snowman",   name:"Snowman Bros",       icon:"⛄", accent:"#66ccff", url:"games/snowman-bros/index.html",
+   tag:"Frosty platforming for one or two players — clear the levels together.", badges:["1–2P"]},
+];
+
+const grid = document.getElementById("grid");
+const player = document.getElementById("player");
+const playerBar = player.querySelector(".player-bar");
+const playerTitle = document.getElementById("playerTitle");
+const frame = document.getElementById("frame");
+const loader = document.getElementById("loader");
+let current = null;
+
+grid.innerHTML = GAMES.map(g => `
+  <article class="card" style="--accent:${g.accent}">
+    <div class="tile">${g.icon}</div>
+    <h2>${g.name}</h2>
+    <p class="tag">${g.tag}</p>
+    <div class="badges">${g.badges.map(b => `<span class="badge">${b}</span>`).join("")}</div>
+    <div class="actions">
+      <button class="btn-play" data-id="${g.id}">▶ Play</button>
+      <button class="btn-open" data-id="${g.id}" title="Open in a new tab">↗</button>
+    </div>
+  </article>`).join("");
+
+let loadTimer = null;
+function hideLoader(){
+  loader.hidden = true;
+  if (loadTimer){ clearTimeout(loadTimer); loadTimer = null; }
+}
+function play(g){
+  current = g;
+  playerTitle.textContent = g.name;
+  playerBar.style.setProperty("--accent", g.accent);
+  player.hidden = false;
+  loader.hidden = false;
+  frame.src = g.url;
+  document.body.style.overflow = "hidden";
+  // Fallback: the iframe load event can be delayed forever if a game's external
+  // fonts/scripts stall, so stop showing "Loading…" after 3s no matter what.
+  loadTimer = setTimeout(hideLoader, 3000);
+}
+function exit(){
+  player.hidden = true;
+  frame.src = "about:blank";   // stops any audio / loops inside the game
+  document.body.style.overflow = "";
+  current = null;
+  hideLoader();
+}
+function openTab(g){ window.open(g.url, "_blank", "noopener"); }
+
+grid.addEventListener("click", e => {
+  const btn = e.target.closest("button[data-id]");
+  if (!btn) return;
+  const g = GAMES.find(x => x.id === btn.dataset.id);
+  if (btn.classList.contains("btn-open")) openTab(g); else play(g);
+});
+
+frame.addEventListener("load", () => { if (!player.hidden) hideLoader(); });
+document.getElementById("btnExit").addEventListener("click", exit);
+document.getElementById("btnNewTab").addEventListener("click", () => { if (current) openTab(current); });
+
+document.addEventListener("keydown", e => {
+  if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!player.hidden){
+    if (e.key === "Escape") exit();
+    return;
+  }
+  const n = Number(e.key);
+  if (n >= 1 && n <= GAMES.length) play(GAMES[n - 1]);
+});
+</script>
+</body>
+</html>

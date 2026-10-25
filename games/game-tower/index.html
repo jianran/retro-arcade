@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameTower — 20 Floors</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <script>window.GT = {};</script>
+  <div id="app">
+    <div id="hub" class="screen">
+      <div id="hub-header"></div>
+      <div id="tower"></div>
+      <div id="hub-footer">
+        Select a floor with ↑ ↓ and press Enter to play · 3 lives for the whole climb — lose them all and the tower resets!
+      </div>
+    </div>
+    <div id="game" class="screen hidden">
+      <div id="stage">
+        <canvas id="canvas" width="960" height="640"></canvas>
+        <div id="hud" class="hidden">
+          <div id="floor-label">FLOOR 1</div>
+          <div id="lives">❤️❤️❤️</div>
+          <div id="timer-wrap"><div id="timer-bar"></div></div>
+          <div id="timer-text">2:00</div>
+          <div id="objective" class="hidden"></div>
+          <div id="paused-label" class="hidden">PAUSED</div>
+        </div>
+        <div id="intro" class="overlay hidden"></div>
+        <div id="count" class="overlay hidden"><div id="count-num">3</div></div>
+        <div id="win" class="overlay hidden"></div>
+        <div id="fail" class="overlay hidden"></div>
+        <div id="gameover" class="overlay hidden"></div>
+      </div>
+    </div>
+    <div id="debug-bar" class="hidden"></div>
+  </div>
+
+  <script src="js/audio.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/gfx.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/hub.js"></script>
+  <script src="js/levels/level-01.js"></script>
+  <script src="js/levels/level-02.js"></script>
+  <script src="js/levels/level-03.js"></script>
+  <script src="js/levels/level-04.js"></script>
+  <script src="js/levels/level-05.js"></script>
+  <script src="js/levels/level-06.js"></script>
+  <script src="js/levels/level-07.js"></script>
+  <script src="js/levels/level-08.js"></script>
+  <script src="js/levels/level-09.js"></script>
+  <script src="js/levels/level-10.js"></script>
+  <script src="js/levels/level-11.js"></script>
+  <script src="js/levels/level-12.js"></script>
+  <script src="js/levels/level-13.js"></script>
+  <script src="js/levels/level-14.js"></script>
+  <script src="js/levels/level-15.js"></script>
+  <script src="js/levels/level-16.js"></script>
+  <script src="js/levels/level-17.js"></script>
+  <script src="js/levels/level-18.js"></script>
+  <script src="js/levels/level-19.js"></script>
+  <script src="js/levels/level-20.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

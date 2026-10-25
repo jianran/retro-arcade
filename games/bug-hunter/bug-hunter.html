@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#070b18" />
+<title>Chaos Bug Hunt</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070b18; display: flex; align-items: center; justify-content: center; overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
+  canvas { border-radius: 14px; box-shadow: 0 10px 60px rgba(0,0,0,.7); max-width: 96vw; max-height: 96vh; max-height: 96dvh; touch-action: none; }
+  #nameField { position: absolute; left: 50%; top: 50%; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; font-size: 16px; pointer-events: none; -webkit-user-select: text; user-select: text; }
+</style>
+</head>
+<body>
+<div id="stage" style="position:relative;">
+<canvas id="game" width="960" height="600"></canvas>
+<input id="nameField" type="text" maxlength="12" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your name" />
+</div>
+<script>
+"use strict";
+/* ================= CHAOS BUG HUNT =================
+   Fly the jet, hunt the bugs, dodge them, grab hearts.
+   Kill the level's exact quota to advance. Small bugs are
+   fast and fragile, big bugs are slow and tough. Two Stalkers
+   always chase you, and a boss appears every 3rd level.
+   WASD / arrows: fly      SPACE: shoot      P: pause
+================================================= */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
+
+/* ---------------- audio (tiny synth) ---------------- */
+let actx = null;
+function audio() {
+  if (!actx) {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) actx = new AC();
+    } catch (e) { actx = null; }
+  }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, dur, type, vol, slide) {
+  const a = audio();
+  if (!a) return;
+  try {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || "square";
+    o.frequency.setValueAtTime(freq, a.currentTime);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, slide), a.currentTime + dur);
+    g.gain.setValueAtTime(vol || 0.05, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + dur);
+  } catch (e) { /* ignore audio errors */ }
+}
+
+/* ---------------- bug catalogue ----------------
+   different bug -> different behavior, hp, score  */
+const BUG_TYPES = {
+  crawler: { name: "Beetle",     r: 13, speed: 75,  hp: 1, score: 10, color: "#7ec850", glow: "#b6ff7a" },
+  moth:    { name: "Moth",       r: 12, speed: 80,  hp: 1, score: 15, color: "#d8b4fe", glow: "#f3e8ff" },
+  zapper:  { name: "Zigzag Bug", r: 11, speed: 150, hp: 1, score: 20, color: "#ffb347", glow: "#ffd98a" },
+  weaver:  { name: "Weaver",     r: 11, speed: 150, hp: 2, score: 35, color: "#3ee6c4", glow: "#b3fff0" },
+  darter:  { name: "Darter",     r: 10, speed: 250, hp: 1, score: 25, color: "#4aa3ff", glow: "#9fd0ff" },
+  firefly: { name: "Firefly",    r: 7,  speed: 330, hp: 1, score: 40, color: "#ffe94a", glow: "#fff7b0" },
+  hunter:  { name: "Stalker",    r: 14, speed: 130, hp: 2, score: 30, color: "#c06bff", glow: "#e0b3ff" },
+  tank:    { name: "Tank",       r: 22, speed: 45,  hp: 4, score: 60, color: "#ff5a5a", glow: "#ff9d9d" },
+  boss:    { name: "Dobsonfly",  r: 34, speed: 40,  hp: 30, score: 500, color: "#ff7ab8", glow: "#ffc2e0" },
+  secretboss: { name: "???", r: 40, speed: 35, hp: 500, score: 0, color: "#2a0a1a", glow: "#ff2d55" }
+};
+
+/* ---------------- state ---------------- */
+let state = "menu";  // menu | naming | playing | paused | gameover | leaderboard
+let player, bugs, shots, hearts, particles, floats, guns;
+let toasts = [];
+let gunSpawnTimer = 0;
+let score = 0, kills = 0, time = 0, shake = 0;
+let cleanKillStreak = 0;
+let bugKillerTriggerCount = 0;
+const BUG_KILLER_MAX_TRIGGERS = 5;
+let secretBossMilestone = 0;
+let secretBossSpawnedThisLevel = 0; // Secret Bosses spawned during the current level (capped by secretBossMax)
+let secretBossBonusScore = 0;       // total of the 9999 kill bonuses; excluded from the 1000-point spawn trigger
+let helper = null; // null, or { x, y, vx, vy, hp, maxHp, fireCd, inv }
+let helperTriggeredByTwoBosses = false;
+const HELPER_MAX_HP = 10;
+function spawnHelperIfNone() {
+  if (helper) return;
+  helper = { x: player.x - 40, y: player.y, vx: 0, vy: 0, hp: HELPER_MAX_HP, maxHp: HELPER_MAX_HP, fireCd: 0, inv: 0 };
+}
+let secretBossKillCount = 0;
+let achEverCrowned = false, achEverBossKill = false;
+try { achEverCrowned = localStorage.getItem("bughunter_ach_crowned") === "1"; } catch (e) { /* ignore */ }
+try { achEverBossKill = localStorage.getItem("bughunter_ach_bosskill") === "1"; } catch (e) { /* ignore */ }
+let crashingPlanesTriggered = false;
+let achEverBugKiller = false, achEverCrashingPlanes = false, achEverDobsonflySlayer = false, achEverSwarmed = false, achEverUntouchable = false;
+let tookDamageThisLevel = false;
+try { achEverBugKiller = localStorage.getItem("bughunter_ach_bugkiller") === "1"; } catch (e) { /* ignore */ }
+try { achEverCrashingPlanes = localStorage.getItem("bughunter_ach_crashingplanes") === "1"; } catch (e) { /* ignore */ }
+try { achEverDobsonflySlayer = localStorage.getItem("bughunter_ach_dobsonflyslayer") === "1"; } catch (e) { /* ignore */ }
+try { achEverSwarmed = localStorage.getItem("bughunter_ach_swarmed") === "1"; } catch (e) { /* ignore */ }
+try { achEverUntouchable = localStorage.getItem("bughunter_ach_untouchable") === "1"; } catch (e) { /* ignore */ }
+let spawnTimer = 0.5;
+let level = 1, levelKills = 0, quota = 0, phase = "intro", phaseTimer = 0; // phase: intro | active | clear
+let best = 0;
+try { best = parseInt(localStorage.getItem("bughunter_best") || "0", 10) || 0; } catch (e) { best = 0; }
+let playerName = "";
+try { playerName = localStorage.getItem("bughunter_last_name") || ""; } catch (e) { playerName = ""; }
+let nameInput = "";
+const NAME_MAX_LEN = 12;
+
+let BOARD_API = "https://chaos-bug-hunt-board.tanfanhua.workers.dev"; // address of the shared leaderboard service; "" keeps both boards on this device only (the kill switch)
+function sharedBoardsOn() { return BOARD_API !== ""; }
+const LEADERBOARD_MAX = 10;
+const LEADERBOARD_PODIUM = 3;
+let leaderboard = [];
+if (!sharedBoardsOn()) { try { leaderboard = JSON.parse(localStorage.getItem("bughunter_leaderboard") || "[]"); } catch (e) { leaderboard = []; } }
+function saveLeaderboard() {
+  if (sharedBoardsOn()) { saveBoards(); return; }
+  try { localStorage.setItem("bughunter_leaderboard", JSON.stringify(leaderboard)); } catch (e) { /* ignore */ }
+}
+const BY_SCORE = (a, b) => b.score - a.score;
+const BY_LEVEL = (a, b) => (b.level - a.level) || (b.score - a.score);
+function placeOnBoard(board, entry, compare) { // sorted merge, a podium of 3 different names, capped at 10 (shared by both boards)
+  const merged = board.concat([entry]).sort(compare);
+  const podium = [], rest = [], seen = new Set();
+  for (const e of merged) {
+    if (podium.length < LEADERBOARD_PODIUM && !seen.has(e.name)) { podium.push(e); seen.add(e.name); }
+    else rest.push(e);
+  }
+  const full = podium.concat(rest);
+  return { kept: full.slice(0, LEADERBOARD_MAX), dropped: full.slice(LEADERBOARD_MAX) };
+}
+function computeLeaderboardAfter(entry) { return placeOnBoard(leaderboard, entry, BY_SCORE); }
+
+/* The level leaderboard: the highest level reached in a run, ties by score then by the earlier run. No clips. */
+let levelBoard = []; // [{ name, level, score }], best first
+if (!sharedBoardsOn()) { try { const saved = JSON.parse(localStorage.getItem("bughunter_levelboard") || "[]"); levelBoard = Array.isArray(saved) ? saved : []; } catch (e) { levelBoard = []; } }
+function saveLevelBoard() {
+  if (sharedBoardsOn()) { saveBoards(); return; }
+  try { localStorage.setItem("bughunter_levelboard", JSON.stringify(levelBoard)); } catch (e) { /* ignore */ }
+}
+function computeLevelBoardAfter(entry) { return placeOnBoard(levelBoard, entry, BY_LEVEL); }
+
+/* The shared leaderboards (docs/superpowers/specs/2026-10-11-bug-hunter-shared-leaderboard-design.md). With BOARD_API set, the two
+   boards above are a display copy of the service's boards, cached in localStorage so the game starts with something to show, and
+   runs that could not be sent yet wait in pendingRuns. With BOARD_API empty none of this runs and the boards live on this device. */
+const PENDING_MAX = 20, PENDING_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000, BOARD_TIMEOUT_MS = 8000;
+let boardEpoch = null; // how many times the service's boards have been wiped, as last heard (null = never heard)
+let boardStatus = "idle"; // "idle" (nothing tried yet) | "loading" | "live" | "offline"
+let pendingRuns = []; // runs not sent yet, oldest first: [{ id, name, level, score, epoch, t }]
+function cleanEntry(e) { // one entry from the cache or the service, or null when it is not usable
+  if (!e || typeof e !== "object" || typeof e.name !== "string" || e.name.length === 0) return null;
+  if (!Number.isFinite(e.score) || !Number.isFinite(e.level)) return null;
+  return { id: typeof e.id === "string" ? e.id : null, name: e.name.slice(0, NAME_MAX_LEN), level: e.level, score: e.score };
+}
+function cleanBoard(list) { return Array.isArray(list) ? list.map(cleanEntry).filter(Boolean).slice(0, LEADERBOARD_MAX) : []; }
+function validPending(r) { // a waiting run read back from storage: well-formed and not older than a week
+  return !!r && typeof r === "object" && typeof r.id === "string" && typeof r.name === "string" && r.name.length > 0
+    && Number.isFinite(r.level) && Number.isFinite(r.score) && Number.isFinite(r.t) && Date.now() - r.t < PENDING_MAX_AGE_MS;
+}
+function saveBoards() {
+  try { localStorage.setItem("bughunter_shared", JSON.stringify({ points: leaderboard, levels: levelBoard, epoch: boardEpoch })); } catch (e) { /* ignore */ }
+}
+function savePending() {
+  try { localStorage.setItem("bughunter_pending", JSON.stringify(pendingRuns)); } catch (e) { /* ignore */ }
+}
+function loadSharedCache() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("bughunter_shared") || "null");
+    if (saved && typeof saved === "object") {
+      leaderboard = cleanBoard(saved.points);
+      levelBoard = cleanBoard(saved.levels);
+      boardEpoch = Number.isInteger(saved.epoch) ? saved.epoch : null;
+    }
+  } catch (e) { /* an unreadable cache: start empty */ }
+  try {
+    const waiting = JSON.parse(localStorage.getItem("bughunter_pending") || "[]");
+    pendingRuns = Array.isArray(waiting) ? waiting.filter(validPending).slice(-PENDING_MAX) : [];
+  } catch (e) { pendingRuns = []; }
+}
+function boardApi(method, path, body) { // resolves with the service's JSON; rejects with an Error whose .status is the HTTP status (0 = no connection or timeout) and .data the JSON body, if any
+  return new Promise((resolve, reject) => {
+    let finished = false, timer = null;
+    const finish = (fn, value) => { if (finished) return; finished = true; clearTimeout(timer); fn(value); };
+    const fail = (message, status, data) => finish(reject, Object.assign(new Error(message), { status: status, data: data }));
+    if (typeof fetch !== "function") { fail("no fetch", 0); return; }
+    timer = setTimeout(() => fail("timeout", 0), BOARD_TIMEOUT_MS);
+    const init = { method: method, cache: "no-store" };
+    if (body !== undefined) { init.headers = { "Content-Type": "application/json" }; init.body = JSON.stringify(body); }
+    try {
+      fetch(BOARD_API + path, init)
+        .then((res) => res.json().then((data) => data, () => null).then((data) => {
+          if (res.ok && data) finish(resolve, data);
+          else fail("HTTP " + res.status, res.status, data);
+        }))
+        .catch(() => fail("network", 0));
+    } catch (e) { fail("network", 0); }
+  });
+}
+function refreshThumbnails() { // the POINTS board changed while it is on screen: rebuild the clip thumbnails (but never under a clip being watched)
+  if (state === "leaderboard" && boardPage === "points" && !zoomedVideoEl) renderLeaderboardVideos();
+}
+function applyBoards(data) { // adopt the service's boards, with any runs still waiting on top; false if the reply is unusable
+  if (!data || !Array.isArray(data.points) || !Array.isArray(data.levels)) return false;
+  if (Number.isInteger(data.epoch)) {
+    boardEpoch = data.epoch;
+    const kept = pendingRuns.filter((r) => !Number.isInteger(r.epoch) || r.epoch >= data.epoch); // runs from before a wipe would be refused anyway
+    if (kept.length !== pendingRuns.length) { pendingRuns = kept; savePending(); }
+  }
+  let points = cleanBoard(data.points), levels = cleanBoard(data.levels);
+  for (const r of pendingRuns) {
+    const run = { id: r.id, name: r.name.slice(0, NAME_MAX_LEN), level: r.level, score: r.score };
+    if (!points.some((e) => e.id === r.id)) points = placeOnBoard(points, Object.assign({}, run), BY_SCORE).kept;
+    if (!levels.some((e) => e.id === r.id)) levels = placeOnBoard(levels, Object.assign({}, run), BY_LEVEL).kept;
+  }
+  const changed = points.map((e) => e.id).join() !== leaderboard.map((e) => e.id).join();
+  leaderboard = points;
+  levelBoard = levels;
+  saveBoards();
+  if (changed) refreshThumbnails();
+  return true;
+}
+function newRunId() { return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10); }
+let clipSaving = Promise.resolve(); // settles once the clip of the latest run has been saved: thumbnails wait for it
+function clipKey(e) { return e.videoId || (e.id ? "run_" + e.id : null); } // where an entry's clip is kept (entries from before run ids remember theirs)
+function submitRun(run) { // queue a finished run and try to send it
+  pendingRuns.push({ id: run.id, name: run.name, level: run.level, score: run.score, epoch: boardEpoch, t: Date.now() });
+  if (pendingRuns.length > PENDING_MAX) pendingRuns.splice(0, pendingRuns.length - PENDING_MAX);
+  savePending();
+  return syncBoards();
+}
+function dropPending(run) { pendingRuns = pendingRuns.filter((r) => r !== run); savePending(); }
+async function flushPending() { // send the waiting runs, oldest first; resolves true if the service answered with boards at least once
+  let answered = false;
+  const fresh = pendingRuns.filter((r) => Date.now() - r.t < PENDING_MAX_AGE_MS);
+  if (fresh.length !== pendingRuns.length) { pendingRuns = fresh; savePending(); }
+  while (pendingRuns.length > 0) {
+    const r = pendingRuns[0];
+    let data;
+    try {
+      data = await boardApi("POST", "/runs", { id: r.id, name: r.name, level: r.level, score: r.score, epoch: r.epoch });
+    } catch (e) {
+      if (e.status !== 409 && e.status !== 400 && e.status !== 413) throw e; // no connection, slow down, or a server hiccup: keep the run for later
+      dropPending(r); // refused for good (a wipe happened, or the run was invalid): forget it
+      if (applyBoards(e.data)) answered = true; // a 409 carries the current boards
+      continue;
+    }
+    dropPending(r);
+    if (applyBoards(data)) answered = true;
+  }
+  return answered;
+}
+let syncPromise = null, syncAgain = false;
+function syncBoards() { // send the waiting runs, then refresh the boards; one sync at a time (a call made meanwhile earns exactly one more pass)
+  if (!sharedBoardsOn()) return Promise.resolve();
+  if (syncPromise) { syncAgain = true; return syncPromise; }
+  boardStatus = "loading";
+  syncPromise = (async () => {
+    try {
+      const answered = await flushPending();
+      if (!answered && !applyBoards(await boardApi("GET", "/boards"))) throw new Error("unusable reply");
+      boardStatus = "live";
+      await pruneClips();
+    } catch (e) {
+      boardStatus = "offline";
+    }
+    syncPromise = null;
+    if (syncAgain) { syncAgain = false; return syncBoards(); }
+  })();
+  return syncPromise;
+}
+if (sharedBoardsOn()) loadSharedCache();
+let LEADERBOARD_CLEAR_LENGTH = 12; // length of the secret clear code
+let LEADERBOARD_CLEAR_HASH = 8358130821886589; // hashText() of the secret clear code; the code itself is stored nowhere (a hash obscures, it is not encryption)
+let leaderboardCodeBuffer = ""; // the last few characters typed outside a run
+function hashText(s) { // cyrb53, a small public-domain 53-bit string hash. It only keeps the clear code out of the page source: it obscures, it is not encryption.
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+function wipeLocalBoards() { // empty both boards and every saved clip on this device
+  leaderboard = [];
+  saveLeaderboard();
+  levelBoard = [];
+  saveLevelBoard();
+  clearAllVideoBlobs().catch(() => {}); // the saved clips go with the scores
+  clearLeaderboardVideos(); // thumbnails (and a zoomed clip) currently on screen
+  pushToast("Leaderboards cleared");
+}
+function clearLeaderboard(code) { // the typed clear code: on its own device, or (shared mode) on the service for everybody, which checks the code itself
+  if (!sharedBoardsOn()) { wipeLocalBoards(); return Promise.resolve(); }
+  return boardApi("POST", "/clear", { code: code })
+    .then((data) => {
+      pendingRuns = []; // runs waiting from before the wipe would be refused anyway
+      savePending();
+      if (Number.isInteger(data.epoch)) boardEpoch = data.epoch;
+      wipeLocalBoards();
+    })
+    .catch(() => pushToast("Couldn't clear the shared boards"));
+}
+let zoomedVideoEl = null;
+let leaderboardVideoEls = [];
+let boardPage = "points"; // which leaderboard page is showing: "points" or "levels"
+function enterLeaderboard(page) { // always opens on POINTS unless told otherwise
+  state = "leaderboard";
+  boardPage = page === "levels" ? "levels" : "points";
+  if (boardPage === "points") renderLeaderboardVideos(); else clearLeaderboardVideos();
+  syncBoards(); // shared mode: refresh the boards from the service (a no-op otherwise)
+}
+function showBoardPage(page) { // POINTS keeps the clip thumbnails; LEVELS has none
+  if (state !== "leaderboard" || page === boardPage) return;
+  boardPage = page;
+  if (page === "points") renderLeaderboardVideos(); else clearLeaderboardVideos();
+}
+function exitLeaderboard() { state = "menu"; clearLeaderboardVideos(); }
+function closeZoom() {
+  if (zoomedVideoEl) { zoomedVideoEl.remove(); zoomedVideoEl = null; }
+}
+function clearLeaderboardVideos() {
+  leaderboardVideoEls.forEach((v) => { URL.revokeObjectURL(v.src); v.remove(); });
+  leaderboardVideoEls = [];
+  closeZoom();
+}
+let videoRenderToken = 0;
+async function renderLeaderboardVideos() {
+  const token = ++videoRenderToken; // a newer render replaces an older one that is still waiting on clips
+  clearLeaderboardVideos();
+  const stage = document.getElementById("stage");
+  await clipSaving; // a clip that is still being saved should show up too
+  if (token !== videoRenderToken) return;
+  for (let i = 0; i < leaderboard.length; i++) {
+    const key = clipKey(leaderboard[i]);
+    if (!key) continue;
+    let blob = null;
+    try { blob = await loadVideoBlob(key); } catch (err) { blob = null; } // no IndexedDB (a private window, say): no thumbnails
+    if (token !== videoRenderToken) return;
+    if (!blob || state !== "leaderboard" || boardPage !== "points") continue; // the board may have closed, or flipped to LEVELS, while this awaited
+    const vid = document.createElement("video");
+    vid.src = URL.createObjectURL(blob);
+    vid.muted = true;
+    vid.style.position = "absolute";
+    vid.style.cursor = "pointer";
+    vid.style.objectFit = "cover";
+    positionThumbnail(vid, i);
+    vid.addEventListener("click", () => openZoom(vid.src));
+    stage.appendChild(vid);
+    leaderboardVideoEls.push(vid);
+  }
+}
+function positionThumbnail(vid, rowIndex) {
+  const scale = canvas.getBoundingClientRect().width / W; // canvas is CSS-scaled — map back to real px
+  const rowY = 150 + rowIndex * 40; // must match drawLeaderboard's startY/rowH
+  vid.style.width = (80 * scale) + "px";
+  vid.style.height = (34 * scale) + "px"; // fits within one row's height — an unsized <video> would otherwise default to 150px tall and overlap neighboring rows
+  vid.style.left = ((W / 2 + 180) * scale) + "px";
+  vid.style.top = ((rowY - 17) * scale) + "px";
+}
+function openZoom(src) {
+  closeZoom();
+  zoomedVideoEl = document.createElement("video");
+  zoomedVideoEl.src = src;
+  zoomedVideoEl.controls = true;
+  zoomedVideoEl.autoplay = true;
+  Object.assign(zoomedVideoEl.style, {
+    position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+    maxWidth: "90vw", maxHeight: "90vh", zIndex: "1000", boxShadow: "0 10px 60px rgba(0,0,0,.8)"
+  });
+  zoomedVideoEl.addEventListener("click", closeZoom);
+  document.body.appendChild(zoomedVideoEl);
+}
+
+const DB_NAME = "bughunter_videos", DB_STORE = "clips";
+function openVideoDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function saveVideoBlob(id, blob) {
+  const db = await openVideoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).put(blob, id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function loadVideoBlob(id) {
+  const db = await openVideoDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function deleteVideoBlob(id) {
+  const db = await openVideoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function clearAllVideoBlobs() {
+  const db = await openVideoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).clear();
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function listVideoKeys() {
+  const db = await openVideoDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).getAllKeys();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function pruneClips() { // delete the clips of runs that are neither on the POINTS board nor waiting to be sent (old "clip_" ones are left alone)
+  try {
+    const keep = new Set(leaderboard.map((e) => clipKey(e)).concat(pendingRuns.map((r) => "run_" + r.id)));
+    for (const key of await listVideoKeys()) if (typeof key === "string" && key.startsWith("run_") && !keep.has(key)) await deleteVideoBlob(key);
+  } catch (e) { /* no IndexedDB, or it failed: the clips stay */ }
+}
+
+const CLIP_SECONDS = 25;
+let recorder = null, recordedChunks = [];
+function startRecording() {
+  recordedChunks = [];
+  try {
+    const stream = canvas.captureStream(30);
+    recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+    recorder.ondataavailable = (e) => {
+      if (!e.data || e.data.size === 0) return;
+      recordedChunks.push(e.data);
+      if (recordedChunks.length > CLIP_SECONDS) recordedChunks.shift();
+    };
+    recorder.start(1000);
+  } catch (e) {
+    recorder = null; // unsupported browser — game proceeds with no video, ever
+  }
+}
+
+const MAX_HP_CAP = 5;
+const SECRET_BOSS_INVINCIBLE_SECONDS = 30; // seconds (the timer is decremented by dt); each kill renews the timer to this, it never stacks
+const SECRET_BOSS_BONUS = 9999;
+const SECRET_BOSS_MIN_LEVEL = 4;
+function secretBossMax(lvl) { return lvl >= SECRET_BOSS_MIN_LEVEL ? lvl - SECRET_BOSS_MIN_LEVEL + 1 : 0; } // level 4: 1, level 5: 2, level 6: 3, ...
+const DIFFICULTIES = [
+  { key: "easy",         label: "Easy",         speedMult: 0.8, spawnMult: 1.3,  startMaxHp: 5 },
+  { key: "medium",       label: "Medium",       speedMult: 1.0, spawnMult: 1.0,  startMaxHp: 5 },
+  { key: "hard",         label: "Hard",         speedMult: 1.2, spawnMult: 0.8,  startMaxHp: 4 },
+  { key: "catastrophic", label: "Catastrophic", speedMult: 1.4, spawnMult: 0.65, startMaxHp: 3, extraStalker: true }
+];
+let difficulty = "medium";
+let menuModeIndex = 1; // index into DIFFICULTIES, starts on "medium"
+let catastrophicUnlocked = false;
+try { catastrophicUnlocked = localStorage.getItem("bughunter_unlock_catastrophic") === "1"; } catch (e) { catastrophicUnlocked = false; }
+function currentDifficulty() { return DIFFICULTIES.find(d => d.key === difficulty) || DIFFICULTIES[1]; }
+function unlockedModes() { return DIFFICULTIES.filter(d => !d.extraStalker || catastrophicUnlocked); }
+
+function quotaFor(lvl) { return 10 + (lvl - 1) * 4; } // bugs to kill to clear a level
+
+function start() {
+  Object.keys(keys).forEach((k) => { keys[k] = false; }); // guard against a key stuck "held" from before this run (e.g. a keyup dropped by a focus change while typing the name)
+  const d = currentDifficulty();
+  player = { x: W / 2, y: H / 2 + 80, vx: 0, vy: 0, angle: -Math.PI / 2, hp: d.startMaxHp, maxHp: d.startMaxHp, inv: 0, fireCd: 0, thrust: false, shotCount: 1, invincibleTimer: 0 };
+  bugs = []; shots = []; hearts = []; particles = []; floats = []; guns = []; // toasts is intentionally not reset here — see declaration above
+  score = 0; kills = 0; time = 0; shake = 0; cleanKillStreak = 0; crashingPlanesTriggered = false;
+  bugKillerTriggerCount = 0;
+  secretBossMilestone = 0; secretBossKillCount = 0;
+  secretBossSpawnedThisLevel = 0; secretBossBonusScore = 0;
+  helper = null; helperTriggeredByTwoBosses = false;
+  tookDamageThisLevel = false;
+  leaderboardCodeBuffer = ""; // a half-typed secret code doesn't carry into the run
+  touch.stickId = null; touch.fireId = null; touch.dx = 0; touch.dy = 0; // let go of any held touch
+  blurNameField(); // dismiss the phone keyboard
+  gesture = null;
+  spawnTimer = 0.4;
+  level = 1; levelKills = 0; quota = quotaFor(level); phase = "intro"; phaseTimer = 2;
+  state = "playing";
+  startRecording();
+}
+
+/* ---------------- input ---------------- */
+const keys = {};
+addEventListener("keydown", (e) => {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].indexOf(e.key) >= 0) e.preventDefault();
+  keys[e.key] = true;
+  keys[e.key.toLowerCase()] = true;
+  audio();
+
+  // The secret code works on every screen except during a run. Nothing is echoed and stray keys before it don't
+  // matter. It is matched on the keys pressed, not on the name field, so a prefilled name can't break it.
+  if (e.key.length === 1 && (state === "menu" || state === "leaderboard" || state === "naming" || state === "gameover")) {
+    leaderboardCodeBuffer = (leaderboardCodeBuffer + e.key).slice(-LEADERBOARD_CLEAR_LENGTH);
+    if (leaderboardCodeBuffer.length === LEADERBOARD_CLEAR_LENGTH && hashText(leaderboardCodeBuffer) === LEADERBOARD_CLEAR_HASH) {
+      const typed = leaderboardCodeBuffer;
+      leaderboardCodeBuffer = "";
+      if (state === "naming") nameInput = playerName; // undo what the code typed into the name field
+      clearLeaderboard(typed);
+      return;
+    }
+  }
+
+  if (state === "naming") {
+    if (e.key === "Enter") {
+      confirmName();
+    } else if (e.key === "Escape") {
+      state = "menu";
+      blurNameField();
+    } else if (e.key === "Backspace") {
+      nameInput = nameInput.slice(0, -1);
+    } else if (e.key.length === 1 && nameInput.length < NAME_MAX_LEN) {
+      nameInput += e.key;
+    }
+    return; // naming screen swallows every other shortcut while active
+  }
+
+  if (state === "menu" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) changeMenuMode(e.key === "ArrowRight" ? 1 : -1);
+  if (e.key === "Enter" && (state === "menu" || state === "gameover")) {
+    nameInput = playerName;
+    state = "naming";
+  }
+  const k = e.key.toLowerCase();
+  if (k === "p" && (state === "playing" || state === "paused")) state = state === "playing" ? "paused" : "playing";
+  if (k === "l" && state === "menu") enterLeaderboard();
+  else if (k === "l" && state === "leaderboard") exitLeaderboard();
+  if (e.key === "Escape" && state === "leaderboard") { if (zoomedVideoEl) closeZoom(); else exitLeaderboard(); }
+  if (e.key === "ArrowDown" && state === "menu") enterLeaderboard("levels"); // the menu's shortcut to the level board
+  else if (e.key === "ArrowDown" && state === "leaderboard") showBoardPage("levels");
+  else if (e.key === "ArrowUp" && state === "leaderboard") showBoardPage("points");
+});
+addEventListener("keyup", (e) => { keys[e.key] = false; keys[e.key.toLowerCase()] = false; });
+canvas.addEventListener("mousedown", (e) => {
+  audio();
+  if (state === "menu" || state === "gameover") { nameInput = playerName; state = "naming"; }
+  else if (state === "leaderboard") { // a mouse click on a tab switches pages
+    const p = canvasPoint(e);
+    if (inRect(p, TAB_POINTS)) showBoardPage("points");
+    else if (inRect(p, TAB_LEVELS)) showBoardPage("levels");
+  }
+});
+
+/* ---------------- touch input (phones and tablets) ----------------
+   Touches drive the same controls as the keyboard: a floating joystick on the left half flies, holding anywhere on the
+   right half fires, and a button at the top pauses. A mouse keeps using the handlers above. */
+let touchMode = false; // true on touch-first devices, and from the first touch on any device
+try { touchMode = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (e) { touchMode = false; }
+const touch = { stickId: null, sx: 0, sy: 0, dx: 0, dy: 0, fireId: null };
+const STICK_RADIUS = 90, STICK_DEADZONE = 14;
+const PAUSE_BTN = { x: W / 2, y: 38, r: 26 };
+const MODE_PREV = { x: W / 2 - 210, y: 424, w: 170, h: 56 }, MODE_NEXT = { x: W / 2 + 40, y: 424, w: 170, h: 56 };
+const MENU_LB_BTN = { x: W - 214, y: H - 68, w: 190, h: 52 }; // buttons are sized for fingers: the canvas is scaled down on a phone
+const NAME_OK_BTN = { x: W / 2 + 20, y: H / 2 + 80, w: 160, h: 60 };
+const NAME_CANCEL_BTN = { x: W / 2 - 180, y: H / 2 + 80, w: 160, h: 60 };
+const PORTRAIT_BTN = { x: W / 2 - 170, y: H / 2 + 60, w: 340, h: 90 };
+let portraitOk = false; // the player chose "play anyway" while holding a touch device in portrait
+function isPortrait() { return touchMode && !portraitOk && innerHeight > innerWidth; }
+function inRect(p, r) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+function changeMenuMode(dir) { // dir: 1 = next difficulty, -1 = previous (arrow keys and the touch arrows)
+  const modes = unlockedModes();
+  const curKey = DIFFICULTIES[menuModeIndex].key;
+  let i = modes.findIndex(m => m.key === curKey);
+  if (i < 0) i = 0;
+  i = (i + dir + modes.length) % modes.length;
+  menuModeIndex = DIFFICULTIES.findIndex(m => m.key === modes[i].key);
+}
+function confirmName() { // Enter, or the touch OK button
+  const trimmed = nameInput.trim().slice(0, NAME_MAX_LEN);
+  playerName = trimmed.length > 0 ? trimmed : "Player";
+  try { localStorage.setItem("bughunter_last_name", playerName); } catch (err) { /* ignore */ }
+  difficulty = DIFFICULTIES[menuModeIndex].key;
+  start();
+}
+const nameField = document.getElementById("nameField"); // hidden text field: focusing it brings up the phone keyboard
+function focusNameField() {
+  if (!nameField) return;
+  nameField.value = nameInput;
+  try { nameField.focus(); } catch (err) { /* ignore */ }
+}
+function blurNameField() {
+  if (!nameField) return;
+  try { nameField.blur(); } catch (err) { /* ignore */ }
+  nameField.value = "";
+}
+function openNaming(viaTouch) {
+  nameInput = playerName;
+  state = "naming";
+  if (viaTouch) focusNameField();
+}
+if (nameField) nameField.addEventListener("input", () => { if (state === "naming") nameInput = nameField.value.slice(0, NAME_MAX_LEN); });
+
+/* Taps and swipes on the menu and the leaderboard screen: a finger that goes down is remembered, and what it meant is
+   decided when it lifts (under 24 canvas px is a tap, a mostly vertical drag of 60+ px is a swipe, anything else is ignored). */
+const SWIPE_MIN = 60, TAP_SLOP = 24;
+let gesture = null; // { id, x, y, state } for the finger that went down on the menu or the leaderboard screen
+function flipBoardPage() { showBoardPage(boardPage === "points" ? "levels" : "points"); }
+function onSwipe(dir) { // dir: "up" or "down"
+  if (state === "menu" && dir === "down") enterLeaderboard("levels"); // the menu: swipe down shows the level board
+  else if (state === "leaderboard") flipBoardPage(); // the leaderboard: any vertical swipe flips the page, so the direction can't be wrong
+}
+function onTap(p) {
+  if (state === "menu") {
+    if (inRect(p, MENU_LB_BTN)) enterLeaderboard();
+    else if (inRect(p, MODE_PREV)) changeMenuMode(-1);
+    else if (inRect(p, MODE_NEXT)) changeMenuMode(1);
+    else openNaming(true);
+  } else if (state === "leaderboard") {
+    if (inRect(p, TAB_POINTS)) showBoardPage("points");
+    else if (inRect(p, TAB_LEVELS)) showBoardPage("levels");
+    else if (!zoomedVideoEl) exitLeaderboard();
+  }
+}
+function canvasPoint(e) { // a pointer position in canvas pixels, whatever size the canvas is scaled to
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse") return;
+  touchMode = true;
+  audio();
+  e.preventDefault();
+  const p = canvasPoint(e);
+  if (isPortrait()) { if (inRect(p, PORTRAIT_BTN)) portraitOk = true; return; } // only the play-anyway button works under the rotate prompt
+  if (state === "playing") {
+    if (Math.hypot(p.x - PAUSE_BTN.x, p.y - PAUSE_BTN.y) <= PAUSE_BTN.r + 12) { state = "paused"; return; }
+    if (p.x < W / 2) {
+      if (touch.stickId === null) { touch.stickId = e.pointerId; touch.sx = p.x; touch.sy = p.y; touch.dx = 0; touch.dy = 0; }
+    } else if (touch.fireId === null) touch.fireId = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  } else if (state === "paused") {
+    state = "playing";
+  } else if (state === "menu" || state === "leaderboard") { // these act when the finger lifts (see releaseTouch), so a swipe can't be mistaken for a tap
+    gesture = { id: e.pointerId, x: p.x, y: p.y, state: state };
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  } else if (state === "gameover") {
+    openNaming(true);
+  } else if (state === "naming") {
+    if (inRect(p, NAME_OK_BTN)) confirmName();
+    else if (inRect(p, NAME_CANCEL_BTN)) { state = "menu"; blurNameField(); }
+    else focusNameField();
+  }
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== touch.stickId) return;
+  const p = canvasPoint(e);
+  let dx = p.x - touch.sx, dy = p.y - touch.sy;
+  const d = Math.hypot(dx, dy);
+  if (d > STICK_RADIUS) { dx *= STICK_RADIUS / d; dy *= STICK_RADIUS / d; }
+  touch.dx = dx; touch.dy = dy;
+});
+function releaseTouch(e) {
+  if (e.pointerId === touch.stickId) { touch.stickId = null; touch.dx = 0; touch.dy = 0; }
+  if (e.pointerId === touch.fireId) touch.fireId = null;
+  if (gesture && e.pointerId === gesture.id) { // a finger lifted on the menu or the leaderboard: was it a tap or a swipe?
+    const g = gesture;
+    gesture = null;
+    if (e.type === "pointercancel" || state !== g.state) return; // cancelled, or the screen changed in the meantime
+    const p = canvasPoint(e);
+    const dx = p.x - g.x, dy = p.y - g.y;
+    if (Math.abs(dy) >= SWIPE_MIN && Math.abs(dy) >= 1.5 * Math.abs(dx)) onSwipe(dy > 0 ? "down" : "up");
+    else if (Math.hypot(dx, dy) <= TAP_SLOP) onTap({ x: g.x, y: g.y });
+  }
+}
+canvas.addEventListener("pointerup", releaseTouch);
+canvas.addEventListener("pointercancel", releaseTouch);
+const TAB_POINTS = { x: W / 2 - 170, y: 94, w: 150, h: 36 }, TAB_LEVELS = { x: W / 2 + 20, y: 94, w: 150, h: 36 }; // the POINTS | LEVELS tabs
+canvas.addEventListener("wheel", (e) => { // scrolling moves between the two leaderboard pages: down is LEVELS, up is POINTS
+  if (state !== "leaderboard" || e.ctrlKey || Math.abs(e.deltaY) < 8) return;
+  showBoardPage(e.deltaY > 0 ? "levels" : "points");
+});
+
+/* ---------------- helpers ---------------- */
+function burst(x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, s = rand(40, 220);
+    particles.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.7), max: 0.7, size: rand(1.5, 4), color: color });
+  }
+}
+function addFloat(x, y, txt, color) { floats.push({ x: x, y: y, txt: txt, color: color, life: 1 }); }
+function pushToast(text) { toasts.push({ text: text, life: 2.8 }); }
+function fmtClock(secs) { // seconds rounded up, as m:ss (180 -> "3:00")
+  const s = Math.max(0, Math.ceil(secs));
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+function makeHeart(x, y) {
+  const a = Math.random() * TAU;
+  return { x: x, y: y, vx: Math.cos(a) * 40, vy: Math.sin(a) * 40, t: Math.random() * 10 };
+}
+
+/* ---------------- spawning ---------------- */
+function pickType() {
+  const opts = [["crawler", 3]];
+  if (level >= 2) opts.push(["moth", 2.5]);
+  if (level >= 3) opts.push(["zapper", 2.5], ["weaver", 2]);
+  if (level >= 4) opts.push(["darter", 2], ["firefly", 1.8]);
+  if (level >= 5) opts.push(["hunter", 2]);
+  if (level >= 6) opts.push(["tank", 1.2]);
+  let tot = 0;
+  for (const o of opts) tot += o[1];
+  let r = Math.random() * tot;
+  for (const o of opts) { r -= o[1]; if (r <= 0) return o[0]; }
+  return "crawler";
+}
+function spawnBug(forceType) {
+  const type = forceType || pickType(), cfg = BUG_TYPES[type];
+  const side = Math.floor(Math.random() * 4);
+  let x, y;
+  if (side === 0) { x = rand(40, W - 40); y = -30; }
+  else if (side === 1) { x = W + 30; y = rand(40, H - 40); }
+  else if (side === 2) { x = rand(40, W - 40); y = H + 30; }
+  else { x = -30; y = rand(40, H - 40); }
+  const a = Math.random() * TAU;
+  // size factor: smaller bugs are faster and more fragile,
+  // bigger bugs are slower and tougher (bosses keep a fixed size)
+  const s = (type === "boss" || type === "secretboss") ? 1 : rand(0.65, 1.45);
+  const r = Math.max(6, Math.round(cfg.r * s));
+  const spd = (cfg.speed / s) * (1 + (level - 1) * 0.05) * currentDifficulty().speedMult;
+  const hp = type === "secretboss" ? cfg.hp : (type === "boss" ? 20 + level * 5 : Math.max(1, Math.ceil(cfg.hp * s)));
+  const sc = type === "secretboss" ? 0 : (type === "boss" ? 400 + level * 100 : Math.max(1, Math.round(cfg.score * s)));
+  bugs.push({ type: type, cfg: cfg, r: r, x: x, y: y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, hp: hp, maxHp: hp, score: sc, flash: 0, t: Math.random() * 10, phase: Math.random() * TAU, baseAngle: a, timer: 0, spd: spd, addTimer: 30, hadAddSpawn: false });
+}
+function spawnAdds(beetleCount, stalkerCount, dobsonflyCount) {
+  for (let i = 0; i < beetleCount; i++) spawnBug("crawler");
+  for (let i = 0; i < stalkerCount; i++) spawnBug("hunter");
+  for (let i = 0; i < (dobsonflyCount || 0); i++) spawnBug("boss"); // ordinary Dobsonflies, each with its own add timer
+}
+function chaserCount() {
+  let n = 0;
+  for (const b of bugs) if (b.type === "hunter") n++;
+  return n;
+}
+function targetChaserCount() { return currentDifficulty().extraStalker ? 3 : 2; }
+function ensureChasers() {
+  let guard = 0;
+  while (chaserCount() < targetChaserCount() && bugs.length < 18 && guard++ < 4) spawnBug("hunter");
+}
+function killBug(i) {
+  const b = bugs[i];
+  if (b.type !== "secretboss") {
+    score += b.score;
+    kills++;
+    levelKills++;
+    addFloat(b.x, b.y, "+" + b.score, b.cfg.glow);
+    cleanKillStreak++;
+    if (cleanKillStreak >= 5) {
+      cleanKillStreak = 0;
+      if (bugKillerTriggerCount < BUG_KILLER_MAX_TRIGGERS) {
+        bugKillerTriggerCount++;
+        player.maxHp = Math.min(player.maxHp + 1, MAX_HP_CAP);
+        player.hp = player.maxHp;
+        player.shotCount = Math.min(player.shotCount + 1, 4);
+        pushToast("BUG KILLER — +1 Heart, +1 Shot");
+        if (!achEverBugKiller) { achEverBugKiller = true; try { localStorage.setItem("bughunter_ach_bugkiller", "1"); } catch (e) { /* ignore */ } }
+      }
+    }
+  }
+  if (b.type === "secretboss") {
+    burst(b.x, b.y, "#ff2d55", 40);
+    burst(b.x, b.y, "#ffd700", 24);
+    shake = Math.max(shake, 0.7);
+    beep(100, 0.6, "sawtooth", 0.12, 30);
+    score += SECRET_BOSS_BONUS;
+    secretBossBonusScore += SECRET_BOSS_BONUS;
+    player.invincibleTimer = SECRET_BOSS_INVINCIBLE_SECONDS; // renews to 30 s, never adds up
+    addFloat(b.x, b.y, "+" + SECRET_BOSS_BONUS, "#ffd700");
+    secretBossKillCount++;
+    pushToast("9999 points and invincible time obtained!!!!!");
+    if (!achEverCrowned) { achEverCrowned = true; try { localStorage.setItem("bughunter_ach_crowned", "1"); } catch (e) { /* ignore */ } }
+    if (secretBossKillCount === 3) {
+      spawnHelperIfNone();
+      pushToast("BOSS KILL — Helper Bug deployed");
+      if (!achEverBossKill) { achEverBossKill = true; try { localStorage.setItem("bughunter_ach_bosskill", "1"); } catch (e) { /* ignore */ } }
+    }
+  } else if (b.type === "boss") {
+    // boss down: big burst, screen shake, and it drops two hearts
+    burst(b.x, b.y, b.cfg.color, 40);
+    burst(b.x, b.y, "#ffffff", 24);
+    shake = Math.max(shake, 0.6);
+    beep(160, 0.5, "sawtooth", 0.1, 45);
+    beep(330, 0.4, "triangle", 0.08, 880);
+    if (hearts.length < 3) hearts.push(makeHeart(b.x - 24, b.y));
+    if (hearts.length < 3) hearts.push(makeHeart(b.x + 24, b.y));
+    if (!b.hadAddSpawn) {
+      score += 200;
+      pushToast("DOBSONFLY SLAYER — +200");
+      if (!achEverDobsonflySlayer) { achEverDobsonflySlayer = true; try { localStorage.setItem("bughunter_ach_dobsonflyslayer", "1"); } catch (e) { /* ignore */ } }
+    }
+  } else {
+    burst(b.x, b.y, b.cfg.color, 14);
+    beep(660, 0.15, "triangle", 0.07, 1320);
+    if (hearts.length < 3 && Math.random() < 0.12) hearts.push(makeHeart(b.x, b.y));
+  }
+  bugs.splice(i, 1);
+}
+function hitPlayer(b) {
+  player.hp--;
+  cleanKillStreak = 0;
+  tookDamageThisLevel = true;
+  if (player.hp === 1 && !crashingPlanesTriggered) {
+    crashingPlanesTriggered = true;
+    difficulty = "easy";
+    pushToast("CRASHING PLANES — assist engaged");
+    if (!achEverCrashingPlanes) { achEverCrashingPlanes = true; try { localStorage.setItem("bughunter_ach_crashingplanes", "1"); } catch (e) { /* ignore */ } }
+  }
+  player.inv = 1.5;
+  shake = 0.5;
+  burst(player.x, player.y, "#ff6b6b", 18);
+  addFloat(player.x, player.y - 24, "-1 HP", "#ff6b6b");
+  beep(120, 0.3, "sawtooth", 0.09, 45);
+  const dx = player.x - b.x, dy = player.y - b.y, d = Math.hypot(dx, dy) || 1;
+  player.vx += (dx / d) * 320;
+  player.vy += (dy / d) * 320;
+  if (player.hp <= 0) {
+    shake = 0.8; // final shake; it decays on its own (see frame loop)
+    state = "gameover";
+    if (score > best) { best = score; try { localStorage.setItem("bughunter_best", String(best)); } catch (e) { /* ignore */ } }
+    finishRun();
+  }
+}
+
+function finishRun() {
+  const run = { id: newRunId(), name: playerName, level: level, score: score };
+  levelBoard = computeLevelBoardAfter(Object.assign({}, run)).kept; // both boards take the run at once, as they always did
+  saveLevelBoard();
+  const entry = Object.assign({}, run);
+  const { kept, dropped } = computeLeaderboardAfter(entry);
+  leaderboard = kept;
+  saveLeaderboard();
+  dropped.forEach((e) => { const key = clipKey(e); if (key) deleteVideoBlob(key).catch(() => {}); });
+  if (recorder && recorder.state !== "inactive" && kept.includes(entry)) {
+    clipSaving = new Promise((resolve) => { // the clip is kept under run_<id>, so the entry needs no extra field and the thumbnails just wait for it
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        saveVideoBlob("run_" + run.id, blob).catch(() => {}).then(resolve);
+      };
+    });
+    recorder.requestData();
+    recorder.stop();
+  } else {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    recorder = null;
+  }
+  if (sharedBoardsOn()) submitRun(run);
+}
+
+/* ---------------- bug behaviors ---------------- */
+function updateBug(b, dt) {
+  b.t += dt;
+  if (b.type === "crawler" || b.type === "tank") {
+    // slow random wander
+    const turn = rand(-1, 1) * (b.type === "tank" ? 0.8 : 2.2) * dt;
+    const a = Math.atan2(b.vy, b.vx) + turn;
+    const s = b.spd * (0.8 + 0.2 * Math.sin(b.t * 2 + b.phase));
+    b.vx = Math.cos(a) * s; b.vy = Math.sin(a) * s;
+  } else if (b.type === "darter") {
+    // sudden fast direction changes
+    b.timer -= dt;
+    if (b.timer <= 0) {
+      b.timer = rand(0.4, 1.1);
+      const a = Math.random() * TAU;
+      b.vx = Math.cos(a) * b.spd; b.vy = Math.sin(a) * b.spd;
+    }
+  } else if (b.type === "firefly") {
+    // frantic micro-darts, twitchier than the darter
+    b.timer -= dt;
+    if (b.timer <= 0) {
+      b.timer = rand(0.25, 0.7);
+      const a = Math.random() * TAU;
+      b.vx = Math.cos(a) * b.spd; b.vy = Math.sin(a) * b.spd;
+    }
+  } else if (b.type === "zapper") {
+    // zigzag: steady heading + wobble
+    const wob = Math.sin(b.t * 7 + b.phase) * 0.9;
+    const a = b.baseAngle + wob;
+    b.vx = Math.cos(a) * b.spd; b.vy = Math.sin(a) * b.spd;
+  } else if (b.type === "moth" || b.type === "weaver") {
+    // wide lazy swings: moths drift in slow arcs, weavers carve big S-curves
+    const w = b.type === "moth" ? 2.2 : 1.4;
+    const amp = b.type === "moth" ? 1.5 : 2.2;
+    const wob = Math.sin(b.t * w + b.phase) * amp;
+    const a = b.baseAngle + wob;
+    b.vx = Math.cos(a) * b.spd; b.vy = Math.sin(a) * b.spd;
+  } else if (b.type === "hunter" || b.type === "boss" || b.type === "secretboss") {
+    // steers toward the player (bosses are heavy and turn slowly)
+    const dx = player.x - b.x, dy = player.y - b.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const k = Math.min(1, ((b.type === "boss" || b.type === "secretboss") ? 1.2 : 3) * dt);
+    b.vx += ((dx / d) * b.spd - b.vx) * k;
+    b.vy += ((dy / d) * b.spd - b.vy) * k;
+  }
+  if (b.type === "boss" || b.type === "secretboss") {
+    b.addTimer -= dt;
+    if (b.addTimer <= 0) {
+      b.addTimer = 30;
+      b.hadAddSpawn = true;
+      if (b.type === "boss") spawnAdds(5, 2);
+      else spawnAdds(10, 10, 2);
+    }
+  }
+  // soft wall steering keeps bugs on screen
+  const m = 40, f = 2400;
+  if (b.x < m) b.vx += f * dt;
+  if (b.x > W - m) b.vx -= f * dt;
+  if (b.y < m) b.vy += f * dt;
+  if (b.y > H - m) b.vy -= f * dt;
+  // hard return: once a bug crosses the border, send it straight back in,
+  // so no bug can be lost off-screen (the soft push above is wiped out by
+  // behaviors that re-aim the velocity every frame, e.g. the zapper)
+  if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+    const dx = W / 2 - b.x, dy = H / 2 - b.y;
+    const d = Math.hypot(dx, dy) || 1;
+    b.vx = (dx / d) * b.spd;
+    b.vy = (dy / d) * b.spd;
+    if (b.type === "zapper" || b.type === "moth" || b.type === "weaver") b.baseAngle = Math.atan2(dy, dx);
+  }
+  const sp = Math.hypot(b.vx, b.vy), cap = b.spd * 1.8;
+  if (sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
+  b.x += b.vx * dt; b.y += b.vy * dt;
+  if (b.flash > 0) b.flash -= dt;
+}
+
+/* ---------------- main update ---------------- */
+function update(dt) {
+  time += dt;
+  const p = player;
+  const milestone = Math.floor((score - secretBossBonusScore) / 1000); // kill bonuses don't count toward new spawns
+  while (phase === "active" && milestone > secretBossMilestone && secretBossSpawnedThisLevel < secretBossMax(level)) {
+    spawnBug("secretboss");
+    secretBossSpawnedThisLevel++;
+    secretBossMilestone++; // advances only when a boss really spawns, so unused milestones stay banked
+  }
+  if (!achEverSwarmed && bugs.length >= 30) {
+    achEverSwarmed = true;
+    try { localStorage.setItem("bughunter_ach_swarmed", "1"); } catch (e) { /* ignore */ }
+    pushToast("SWARMED");
+  }
+  if (!helperTriggeredByTwoBosses) {
+    const secretBossCount = bugs.filter(b => b.type === "secretboss").length;
+    if (secretBossCount >= 2) { helperTriggeredByTwoBosses = true; spawnHelperIfNone(); }
+  }
+  if (helper) {
+    const tx = player.x - 40, ty = player.y - 10;
+    helper.vx += (tx - helper.x) * 4 * dt;
+    helper.vy += (ty - helper.y) * 4 * dt;
+    helper.x += helper.vx * dt; helper.y += helper.vy * dt;
+
+    helper.fireCd -= dt;
+    let nearest = null, nearestD2 = 300 * 300;
+    for (const b of bugs) {
+      const d2 = dist2(helper.x, helper.y, b.x, b.y);
+      if (d2 < nearestD2) { nearestD2 = d2; nearest = b; }
+    }
+    if (nearest && helper.fireCd <= 0) {
+      helper.fireCd = 0.25;
+      const a = Math.atan2(nearest.y - helper.y, nearest.x - helper.x);
+      shots.push({ x: helper.x, y: helper.y, vx: Math.cos(a) * 480, vy: Math.sin(a) * 480, life: 1.2 });
+    }
+
+    if (helper.inv > 0) helper.inv -= dt;
+    if (helper.inv <= 0) {
+      for (const b of bugs) {
+        if (dist2(helper.x, helper.y, b.x, b.y) < (b.r + 10) * (b.r + 10)) {
+          helper.hp--; helper.inv = 1.0;
+          burst(helper.x, helper.y, "#8fffb0", 10);
+          if (helper.hp <= 0) { helper = null; pushToast("Helper Bug destroyed"); }
+          break;
+        }
+      }
+    }
+  }
+
+  /* --- player flight --- */
+  const up = keys["w"] || keys["arrowup"];
+  const down = keys["s"] || keys["arrowdown"];
+  const left = keys["a"] || keys["arrowleft"];
+  const right = keys["d"] || keys["arrowright"];
+  let ax = (right ? 1 : 0) - (left ? 1 : 0);
+  let ay = (down ? 1 : 0) - (up ? 1 : 0);
+  if (touch.stickId !== null) { // the touch joystick overrides the keys with an analog direction
+    const sl = Math.hypot(touch.dx, touch.dy);
+    if (sl > STICK_DEADZONE) { ax = touch.dx / sl; ay = touch.dy / sl; }
+  }
+  const al = Math.hypot(ax, ay);
+  p.thrust = al > 0;
+  if (p.thrust) {
+    p.vx += (ax / al) * 1500 * dt;
+    p.vy += (ay / al) * 1500 * dt;
+  }
+  const damp = Math.max(0, 1 - (p.thrust ? 3 : 7) * dt);
+  p.vx *= damp; p.vy *= damp;
+  const sp = Math.hypot(p.vx, p.vy);
+  if (sp > 360) { p.vx *= 360 / sp; p.vy *= 360 / sp; }
+  p.x = Math.max(16, Math.min(W - 16, p.x + p.vx * dt));
+  p.y = Math.max(16, Math.min(H - 16, p.y + p.vy * dt));
+  if (sp > 30) {
+    const target = Math.atan2(p.vy, p.vx);
+    let da = target - p.angle;
+    while (da > Math.PI) da -= TAU;
+    while (da < -Math.PI) da += TAU;
+    p.angle += da * Math.min(1, 10 * dt);
+  }
+
+  /* --- shooting --- */
+  p.fireCd -= dt;
+  if ((keys[" "] || touch.fireId !== null) && p.fireCd <= 0) {
+    p.fireCd = 0.16;
+    for (let i = 0; i < p.shotCount; i++) {
+      const offsetDeg = (i - (p.shotCount - 1) / 2) * 8;
+      const a = p.angle + offsetDeg * Math.PI / 180;
+      shots.push({
+        x: p.x + Math.cos(p.angle) * 20, y: p.y + Math.sin(p.angle) * 20,
+        vx: Math.cos(a) * 540 + p.vx * 0.4, vy: Math.sin(a) * 540 + p.vy * 0.4,
+        life: 1.2
+      });
+    }
+    beep(900, 0.07, "square", 0.035, 300);
+  }
+
+  /* --- level flow: intro -> active -> clear -> next level --- */
+  if (phase !== "active") {
+    phaseTimer -= dt;
+    if (phaseTimer <= 0) {
+      if (phase === "intro") {
+        phase = "active"; spawnTimer = 0.2;
+        tookDamageThisLevel = false;
+        ensureChasers();                       // two Stalkers hunt from level start
+        if (level % 3 === 0) spawnBug("boss"); // a boss on every 3rd level
+        guns.length = 0;
+        gunSpawnTimer = rand(3, 6);
+      }
+      else { // clear finished -> next level
+        level++;
+        levelKills = 0;
+        secretBossSpawnedThisLevel = 0;
+        quota = quotaFor(level);
+        phase = "intro";
+        phaseTimer = 2;
+      }
+    }
+  }
+
+  /* --- bug spawning: keep the screen stocked until the quota is killed --- */
+  if (phase === "active" && levelKills < quota) {
+    spawnTimer -= dt;
+    const interval = Math.max(0.3, 1.2 - (level - 1) * 0.08) * currentDifficulty().spawnMult;
+    const maxBugs = Math.min(5 + level, 18);
+    if (spawnTimer <= 0 && bugs.length < maxBugs) {
+      if (chaserCount() < targetChaserCount()) spawnBug("hunter"); // keep the target chaser count on screen
+      else spawnBug();
+      spawnTimer = interval;
+    }
+    else if (spawnTimer <= 0) spawnTimer = 0.3;
+  }
+
+  /* --- gun pickup: one spawn opportunity per level, static until collected --- */
+  if (phase === "active" && guns.length === 0 && gunSpawnTimer > 0) {
+    gunSpawnTimer -= dt;
+    if (gunSpawnTimer <= 0) {
+      guns.push({ x: rand(60, W - 60), y: rand(60, H - 60), t: 0 });
+    }
+  }
+  for (let i = guns.length - 1; i >= 0; i--) {
+    const g = guns[i];
+    g.t += dt;
+    if (dist2(g.x, g.y, p.x, p.y) < 22 * 22) {
+      guns.splice(i, 1);
+      p.maxHp = Math.min(p.maxHp + 5, MAX_HP_CAP);
+      p.hp = p.maxHp;
+      p.shotCount = Math.min(p.shotCount + 1, 4);
+      addFloat(p.x, p.y - 24, "+5 HP MAX", "#8ff4ff");
+      addFloat(p.x, p.y - 44, "+1 SHOT", "#ffe066");
+      burst(g.x, g.y, "#ffe066", 16);
+      beep(392, 0.1, "square", 0.07, 784);
+      beep(587, 0.14, "square", 0.06, 1046);
+    }
+  }
+
+  /* --- level cleared: quota met AND any boss/secret boss defeated --- */
+  const bossAlive = bugs.some(b => b.type === "boss" || b.type === "secretboss");
+  if (phase === "active" && levelKills >= quota && !bossAlive) {
+    for (const b of bugs) burst(b.x, b.y, b.cfg.color, 8);
+    bugs.length = 0;
+    guns.length = 0;
+    score += 50 * level;
+    burst(p.x, p.y, "#8ff4ff", 20);
+    beep(523, 0.1, "triangle", 0.06, 784);
+    beep(784, 0.14, "triangle", 0.06, 1046);
+    beep(1046, 0.22, "triangle", 0.06, 1568);
+    if (!tookDamageThisLevel) {
+      player.shotCount = Math.min(player.shotCount + 1, 4);
+      pushToast("UNTOUCHABLE — +1 Shot");
+      if (!achEverUntouchable) { achEverUntouchable = true; try { localStorage.setItem("bughunter_ach_untouchable", "1"); } catch (e) { /* ignore */ } }
+    }
+    if (!catastrophicUnlocked && level >= 6) {
+      catastrophicUnlocked = true;
+      try { localStorage.setItem("bughunter_unlock_catastrophic", "1"); } catch (e) { /* ignore */ }
+      pushToast("Catastrophic mode unlocked!");
+    }
+    phase = "clear";
+    phaseTimer = 2.5;
+  }
+
+  for (const b of bugs) updateBug(b, dt);
+
+  /* --- shots vs bugs --- */
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const s = shots[i];
+    s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
+    if (s.life <= 0 || s.x < -20 || s.x > W + 20 || s.y < -20 || s.y > H + 20) { shots.splice(i, 1); continue; }
+    for (let j = bugs.length - 1; j >= 0; j--) {
+      const b = bugs[j];
+      const rr = b.r + 5;
+      if (dist2(s.x, s.y, b.x, b.y) < rr * rr) {
+        shots.splice(i, 1);
+        b.hp--; b.flash = 0.1;
+        burst(s.x, s.y, b.cfg.color, 5);
+        if (b.hp <= 0) killBug(j);
+        else beep(300, 0.05, "square", 0.04, 150);
+        break;
+      }
+    }
+  }
+
+  /* --- hearts: no free spawns, only drops from killed bugs --- */
+  for (let i = hearts.length - 1; i >= 0; i--) {
+    const h = hearts[i];
+    h.t += dt;
+    h.x += h.vx * dt; h.y += h.vy * dt;
+    if (h.x < 20 || h.x > W - 20) h.vx *= -1;
+    if (h.y < 20 || h.y > H - 20) h.vy *= -1;
+    if (dist2(h.x, h.y, p.x, p.y) < 26 * 26) {
+      hearts.splice(i, 1);
+      if (p.hp < p.maxHp) {
+        p.hp++;
+        addFloat(p.x, p.y - 24, "+1 HP", "#ff8fae");
+      } else {
+        score += 20;
+        addFloat(p.x, p.y - 24, "+20 (full)", "#ff8fae");
+      }
+      burst(h.x, h.y, "#ff8fae", 12);
+      beep(523, 0.09, "triangle", 0.06, 660);
+      beep(784, 0.12, "triangle", 0.05, 1046);
+    }
+  }
+
+  /* --- bugs vs player: every bug hit costs 1 hp (unless invincible) --- */
+  if (p.invincibleTimer > 0) p.invincibleTimer -= dt;
+  if (p.inv > 0) p.inv -= dt;
+  if (p.inv <= 0 && p.invincibleTimer <= 0) {
+    for (const b of bugs) {
+      const rr = b.r + 12;
+      if (dist2(p.x, p.y, b.x, b.y) < rr * rr) { hitPlayer(b); break; }
+    }
+  }
+
+  /* --- particles & floating text --- */
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const q = particles[i];
+    q.life -= dt;
+    if (q.life <= 0) { particles.splice(i, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt;
+    q.vx *= Math.max(0, 1 - 2.5 * dt);
+    q.vy *= Math.max(0, 1 - 2.5 * dt);
+  }
+  for (let i = floats.length - 1; i >= 0; i--) {
+    const f = floats[i];
+    f.life -= dt; f.y -= 40 * dt;
+    if (f.life <= 0) floats.splice(i, 1);
+  }
+  for (let i = toasts.length - 1; i >= 0; i--) {
+    toasts[i].life -= dt;
+    if (toasts[i].life <= 0) toasts.splice(i, 1);
+  }
+}
+
+/* ---------------- drawing ---------------- */
+const bg = ctx.createLinearGradient(0, 0, 0, H);
+bg.addColorStop(0, "#0a1130");
+bg.addColorStop(0.65, "#0f1b3e");
+bg.addColorStop(1, "#182742");
+const stars = [];
+for (let i = 0; i < 110; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: rand(0.5, 1.8), p: Math.random() * TAU });
+
+function drawHeart(x, y, s, t, filled) {
+  ctx.save();
+  ctx.translate(x, y);
+  const k = 1 + 0.12 * Math.sin(t * 5);
+  ctx.scale(s * k, s * k);
+  ctx.beginPath();
+  ctx.moveTo(0, 0.35);
+  ctx.bezierCurveTo(-0.55, -0.18, -0.32, -0.62, 0, -0.28);
+  ctx.bezierCurveTo(0.32, -0.62, 0.55, -0.18, 0, 0.35);
+  ctx.closePath();
+  if (filled) {
+    ctx.fillStyle = "#ff5b7f";
+    ctx.shadowColor = "#ff8fae";
+    ctx.shadowBlur = 14;
+    ctx.fill();
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 0.08;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBug(b) {
+  const a = Math.atan2(b.vy, b.vx);
+  const r = b.r || b.cfg.r;
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(a);
+  // legs
+  ctx.strokeStyle = "rgba(255,255,255,0.45)";
+  ctx.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) {
+    const ph = Math.sin(b.t * 12 + i * 2 + b.phase) * 3;
+    ctx.beginPath();
+    ctx.moveTo(i * r * 0.5, -r * 0.5); ctx.lineTo(i * r * 0.5 + ph, -r * 1.15);
+    ctx.moveTo(i * r * 0.5, r * 0.5); ctx.lineTo(i * r * 0.5 + ph, r * 1.15);
+    ctx.stroke();
+  }
+  // stalker wings
+  if (b.type === "hunter") {
+    const flap = 0.35 + Math.abs(Math.sin(b.t * 20)) * 0.7;
+    ctx.fillStyle = "rgba(224,190,255,0.3)";
+    ctx.beginPath(); ctx.ellipse(-r * 0.2, -r * 0.75 * flap, r * 0.95, r * 0.5, -0.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-r * 0.2, r * 0.75 * flap, r * 0.95, r * 0.5, 0.5, 0, TAU); ctx.fill();
+  }
+  // moth wings: broad, pale, slow flap
+  if (b.type === "moth") {
+    const flap = 0.4 + Math.abs(Math.sin(b.t * 14 + b.phase)) * 0.8;
+    ctx.fillStyle = "rgba(235,220,255,0.35)";
+    ctx.beginPath(); ctx.ellipse(-r * 0.15, -r * 0.9 * flap, r * 1.05, r * 0.62, -0.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-r * 0.15, r * 0.9 * flap, r * 1.05, r * 0.62, 0.5, 0, TAU); ctx.fill();
+  }
+  // body (glowing)
+  ctx.shadowColor = b.cfg.glow;
+  ctx.shadowBlur = b.type === "firefly" ? 20 + Math.sin(b.t * 10 + b.phase) * 8 : 14;
+  ctx.fillStyle = b.flash > 0 ? "#ffffff" : b.cfg.color;
+  ctx.beginPath();
+  if (b.type === "boss") ctx.ellipse(0, 0, r * 1.35, r * 0.7, 0, 0, TAU);
+  else ctx.ellipse(0, 0, r * 1.15, r * 0.85, 0, 0, TAU);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // shell seam
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(r * 0.45, 0); ctx.lineTo(-r * 1.05, 0); ctx.stroke();
+  if (b.type === "tank") {
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(i * r * 0.5, 0, r * 0.28, 0, TAU); ctx.fill(); }
+  }
+  if (b.type === "secretboss") {
+    // dark urchin-like spines, no wings
+    ctx.strokeStyle = "#ff2d55";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 14; i++) {
+      const sa = (i / 14) * TAU + b.t * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(sa) * r * 0.95, Math.sin(sa) * r * 0.8);
+      ctx.lineTo(Math.cos(sa) * r * 1.6, Math.sin(sa) * r * 1.35);
+      ctx.stroke();
+    }
+  }
+  if (b.type === "boss") {
+    // large net-veined wings
+    const flap = 0.9 + Math.abs(Math.sin(b.t * 6)) * 0.5;
+    ctx.fillStyle = "rgba(255,194,224,0.28)";
+    ctx.strokeStyle = "rgba(255,194,224,0.55)";
+    ctx.lineWidth = 1.5;
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.1, sgn * r * flap, r * 1.7, r * 0.55, sgn * 0.45, 0, TAU);
+      ctx.fill();
+      for (let v = -1; v <= 1; v++) {
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.6, sgn * r * flap * 0.5);
+        ctx.lineTo(r * 1.1 + v * r * 0.3, sgn * (r * flap + v * r * 0.25));
+        ctx.stroke();
+      }
+    }
+    // curved pincer mandibles, extending past the wing silhouette for contrast
+    ctx.strokeStyle = "rgba(20,8,16,0.9)";
+    ctx.lineWidth = 4;
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.9, sgn * r * 0.2);
+      ctx.quadraticCurveTo(r * 2.1, sgn * r * 0.65, r * 1.7, sgn * -r * 0.1);
+      ctx.stroke();
+    }
+  }
+  // head + eyes
+  ctx.fillStyle = "rgba(10,10,20,0.75)";
+  ctx.beginPath(); ctx.arc(r * 0.95, 0, r * 0.42, 0, TAU); ctx.fill();
+  if (b.type === "secretboss") {
+    ctx.fillStyle = "#ff2d55";
+    ctx.shadowColor = "#ff2d55";
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(r * 1.05, -r * 0.2, r * 0.11, 0, TAU);
+    ctx.arc(r * 1.15, 0, r * 0.11, 0, TAU);
+    ctx.arc(r * 1.05, r * 0.2, r * 0.11, 0, TAU);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(r * 1.05, -r * 0.16, r * 0.12, 0, TAU);
+    ctx.arc(r * 1.05, r * 0.16, r * 0.12, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const p = player;
+  const blink = p.inv > 0 && Math.floor(performance.now() / 90) % 2 === 0;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle);
+  if (blink) ctx.globalAlpha = 0.35;
+  if (p.invincibleTimer > 0) {
+    ctx.save();
+    ctx.rotate(-p.angle);
+    ctx.strokeStyle = "rgba(255,215,0," + (0.5 + 0.4 * Math.sin(performance.now() / 150)) + ")";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 24, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // thruster flame
+  if (p.thrust) {
+    const fl = 10 + Math.random() * 12;
+    ctx.fillStyle = "rgba(255,170,60,0.9)";
+    ctx.beginPath();
+    ctx.moveTo(-14, -4); ctx.lineTo(-14 - fl, 0); ctx.lineTo(-14, 4);
+    ctx.closePath(); ctx.fill();
+  }
+  // jet body
+  ctx.fillStyle = "#dfe9ff";
+  ctx.strokeStyle = "#7fa0ff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(22, 0);
+  ctx.lineTo(-6, -7);
+  ctx.lineTo(-16, -15);
+  ctx.lineTo(-10, -3);
+  ctx.lineTo(-14, 0);
+  ctx.lineTo(-10, 3);
+  ctx.lineTo(-16, 15);
+  ctx.lineTo(-6, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // cockpit
+  ctx.fillStyle = "#3550c8";
+  ctx.beginPath(); ctx.arc(5, 0, 3.5, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function centerText(txt, x, y, size, color) {
+  ctx.font = "bold " + size + "px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = color;
+  ctx.fillText(txt, x, y);
+  ctx.textAlign = "left";
+}
+
+function drawNaming(t) {
+  ctx.fillStyle = "rgba(5,8,20,0.65)";
+  ctx.fillRect(0, 0, W, H);
+  centerText("ENTER YOUR NAME", W / 2, H / 2 - 60, 34, "#ffffff");
+  const boxW = 360, boxH = 54;
+  ctx.strokeStyle = "#8ff4ff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(W / 2 - boxW / 2, H / 2 - boxH / 2, boxW, boxH);
+  ctx.font = "bold 28px 'Segoe UI', sans-serif";
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "left";
+  const textX = W / 2 - boxW / 2 + 16;
+  ctx.fillText(nameInput, textX, H / 2 + 10);
+  if (Math.floor(t * 2) % 2 === 0) {
+    const w = ctx.measureText(nameInput).width;
+    ctx.fillRect(textX + w + 3, H / 2 - 16, 3, 30);
+  }
+  ctx.textAlign = "center";
+  ctx.font = "14px 'Segoe UI', sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  if (touchMode) { // touch: the buttons stand in for Enter and Esc
+    ctx.fillText("tap the box to type  •  up to " + NAME_MAX_LEN + " characters", W / 2, H / 2 + 60);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#8ff4ff";
+    ctx.strokeRect(NAME_OK_BTN.x, NAME_OK_BTN.y, NAME_OK_BTN.w, NAME_OK_BTN.h);
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.strokeRect(NAME_CANCEL_BTN.x, NAME_CANCEL_BTN.y, NAME_CANCEL_BTN.w, NAME_CANCEL_BTN.h);
+    ctx.font = "bold 26px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "#8ff4ff";
+    ctx.fillText("OK", NAME_OK_BTN.x + NAME_OK_BTN.w / 2, NAME_OK_BTN.y + 39);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fillText("CANCEL", NAME_CANCEL_BTN.x + NAME_CANCEL_BTN.w / 2, NAME_CANCEL_BTN.y + 39);
+  } else {
+    ctx.fillText("Enter to confirm  •  Esc to cancel  •  up to " + NAME_MAX_LEN + " characters", W / 2, H / 2 + 60);
+  }
+  if (sharedBoardsOn()) centerText("Your name and score are shown on the shared leaderboard.", W / 2, touchMode ? H / 2 + 176 : H / 2 + 96, 13, "rgba(255,255,255,0.45)");
+}
+
+function boardStatusLine() { // the small line under the rows in shared mode: is this the live shared board? (null in local-only mode)
+  if (!sharedBoardsOn()) return null;
+  if (boardStatus === "live") return { text: "Shared board", color: "rgba(143,244,255,0.7)" };
+  if (boardStatus === "offline") {
+    const n = pendingRuns.length;
+    return { text: n > 0 ? "Offline — " + n + (n === 1 ? " run" : " runs") + " will be sent later" : "Offline — showing saved scores", color: "#ffb86b" };
+  }
+  return { text: "Updating shared board…", color: "rgba(255,255,255,0.45)" };
+}
+function drawBoardTabs() { // POINTS | LEVELS under the title: the current page is bright and underlined
+  ctx.font = "bold 18px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  [["POINTS", TAB_POINTS, "points"], ["LEVELS", TAB_LEVELS, "levels"]].forEach(([label, r, page]) => {
+    const active = boardPage === page;
+    ctx.fillStyle = active ? "#ffffff" : "rgba(255,255,255,0.4)";
+    ctx.fillText(label, r.x + r.w / 2, r.y + 24);
+    if (active) ctx.fillRect(r.x + r.w / 2 - 34, r.y + 30, 68, 3);
+  });
+}
+function drawLeaderboard(t) { // the POINTS page or the LEVELS page
+  const levels = boardPage === "levels";
+  ctx.fillStyle = "rgba(5,8,20,0.75)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.shadowColor = "#ffd700";
+  ctx.shadowBlur = 20;
+  centerText(levels ? "LEVEL LEADERBOARD" : "LEADERBOARD", W / 2, 80, 44, "#ffffff");
+  ctx.shadowBlur = 0;
+  drawBoardTabs();
+  const rows = levels ? levelBoard : leaderboard;
+  const startY = 150, rowH = 40;
+  rows.forEach((e, i) => {
+    const y = startY + i * rowH;
+    const rankColor = i === 0 ? "#ffd700" : i === 1 ? "#c0c0c0" : i === 2 ? "#cd7f32" : "rgba(255,255,255,0.85)";
+    ctx.textAlign = "left";
+    ctx.font = "bold 20px 'Segoe UI', sans-serif";
+    ctx.fillStyle = rankColor;
+    ctx.fillText((i + 1) + ".", W / 2 - 260, y);
+    ctx.fillText(e.name, W / 2 - 220, y);
+    const nameW = ctx.measureText(e.name).width;
+    const mainText = levels ? "Level " + e.level : e.score + " points";
+    ctx.font = "16px 'Segoe UI', sans-serif";
+    const mainW = ctx.measureText(mainText).width;
+    const dashesX = W / 2 - 220 + nameW + 10, dashesEndX = W / 2 + 150 - mainW;
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    if (dashesEndX > dashesX) ctx.fillText("-".repeat(Math.max(3, Math.floor((dashesEndX - dashesX) / 8))), dashesX, y);
+    ctx.fillStyle = rankColor;
+    ctx.textAlign = "right";
+    ctx.fillText(mainText, W / 2 + 160, y);
+    if (levels) { // the score breaks ties between equal levels, so show it in small text
+      ctx.font = "14px 'Segoe UI', sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.fillText(e.score + " pts", W / 2 + 260, y);
+    }
+  });
+  if (rows.length === 0) centerText(levels ? "No runs yet — reach a level to get on the board!" : "No runs yet — go set the first score!", W / 2, startY + 40, 18, "rgba(255,255,255,0.6)");
+  const status = boardStatusLine();
+  if (status) centerText(status.text, W / 2, H - 64, 13, status.color);
+  const flip = levels ? (touchMode ? "swipe for POINTS" : "↑ or scroll for POINTS") : (touchMode ? "swipe down for LEVELS" : "↓ or scroll for LEVELS");
+  centerText(flip + "  •  " + (touchMode ? "tap anywhere to return to the menu" : "L / Esc to return to the menu"), W / 2, H - 40, 14, "rgba(255,255,255,0.5)");
+}
+
+function drawMenu(t) {
+  ctx.fillStyle = "rgba(5,8,20,0.55)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.shadowColor = "#8ff4ff";
+  ctx.shadowBlur = 24;
+  centerText("CHAOS BUG HUNT", W / 2, 110, 56, "#ffffff");
+  ctx.shadowBlur = 0;
+  centerText("Small bugs fly fast with 1 HP, big bugs are slow and tough. Two Stalkers always hunt you, a boss every 3rd level!", W / 2, 150, 18, "rgba(255,255,255,0.75)");
+
+  // bug legend: live mini-bugs + their score, two columns
+  const rows = ["crawler", "moth", "zapper", "weaver", "darter", "firefly", "hunter", "tank", "boss"];
+  rows.forEach((type, i) => {
+    const cfg = BUG_TYPES[type];
+    const bx = W / 2 - 230 + (i % 2) * 300;
+    const y = 215 + Math.floor(i / 2) * 42;
+    const fake = { type: type, cfg: cfg, x: bx, y: y, r: Math.min(cfg.r, 16), vx: 1, vy: 0, hp: cfg.hp, flash: 0, t: t, phase: i, baseAngle: 0, timer: 0 };
+    drawBug(fake);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "bold 18px 'Segoe UI', sans-serif";
+    ctx.textAlign = "left";
+    const nameText = cfg.name + (cfg.hp > 1 ? "  (HP " + cfg.hp + ")" : "");
+    ctx.fillText(nameText, bx + 45, y + 6);
+    const nameWidth = ctx.measureText(nameText).width;
+    ctx.fillStyle = cfg.glow;
+    ctx.textAlign = "left";
+    ctx.fillText(cfg.score + " pts", bx + 45 + nameWidth + 16, y + 6);
+  });
+
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "14px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("A boss appears on every 3rd level", W / 2, 420);
+  const modeLabel = DIFFICULTIES[menuModeIndex].label;
+  ctx.font = "bold 20px 'Segoe UI', sans-serif";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText("‹  " + modeLabel + "  ›", W / 2, 452);
+  ctx.font = "13px 'Segoe UI', sans-serif";
+  ctx.fillStyle = catastrophicUnlocked ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.35)";
+  const modeHint = touchMode ? "tap ‹ › to change mode" : "arrow keys to change mode";
+  ctx.fillText(catastrophicUnlocked ? modeHint : modeHint + "  •  clear level 6 to unlock Catastrophic", W / 2, 472);
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.font = "16px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(touchMode ? "Left thumb: fly      Right thumb: fire      hearts are dropped by bugs (+1 HP, max 5)" : "WASD / arrows: fly      SPACE: shoot      P: pause      L: leaderboard      hearts are dropped by bugs (+1 HP, max 5)", W / 2, 503);
+  ctx.font = "12px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  const badges = [
+    ["BUG KILLER", achEverBugKiller], ["CRASHING PLANES", achEverCrashingPlanes],
+    ["DOBSONFLY SLAYER", achEverDobsonflySlayer], ["SWARMED", achEverSwarmed],
+    ["UNTOUCHABLE", achEverUntouchable], ["CROWNED", achEverCrowned], ["BOSS KILL", achEverBossKill]
+  ];
+  const perRow = 4, colW = 190;
+  badges.forEach(([name, earned], i) => {
+    const row = Math.floor(i / perRow), col = i % perRow;
+    const rowCount = Math.min(perRow, badges.length - row * perRow);
+    const x = W / 2 + (col - (rowCount - 1) / 2) * colW;
+    const y = 528 + row * 18;
+    ctx.fillStyle = earned ? "#8ff4ff" : "rgba(255,255,255,0.3)";
+    ctx.fillText((earned ? "✓ " : "○ ") + name, x, y);
+  });
+  ctx.textAlign = "center";
+  if (Math.floor(t * 2) % 2 === 0) {
+    ctx.font = "bold 24px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "#8ff4ff";
+    ctx.fillText(touchMode ? "Tap to start" : "Press ENTER to enter your name", W / 2, 575);
+  }
+  if (touchMode) { // touch: a LEADERBOARD button, since there is no L key
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(MENU_LB_BTN.x, MENU_LB_BTN.y, MENU_LB_BTN.w, MENU_LB_BTN.h);
+    ctx.font = "bold 19px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.textAlign = "center";
+    ctx.fillText("LEADERBOARD", MENU_LB_BTN.x + MENU_LB_BTN.w / 2, MENU_LB_BTN.y + 33);
+  }
+  ctx.textAlign = "left";
+}
+
+const SECRET_BOSS_BAR_W = 96, SECRET_BOSS_BAR_H = 8;
+function secretBossBarRect(b) { // above the boss, clamped so the bar and its label stay on the canvas
+  return {
+    x: Math.min(Math.max(b.x - SECRET_BOSS_BAR_W / 2, 4), W - 4 - SECRET_BOSS_BAR_W),
+    y: Math.max(b.y - b.r * 1.6 - 14, 22),
+    w: SECRET_BOSS_BAR_W,
+    h: SECRET_BOSS_BAR_H
+  };
+}
+function drawSecretBossBar(b) {
+  const bar = secretBossBarRect(b);
+  const frac = Math.max(0, b.hp / b.maxHp);
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
+  ctx.fillStyle = "#ff2d55";
+  ctx.fillRect(bar.x, bar.y, bar.w * frac, bar.h);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 13px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(Math.max(0, b.hp) + " / " + b.maxHp, bar.x + bar.w / 2, bar.y - 4);
+  ctx.textAlign = "left";
+}
+
+function drawTouchControls() { // the joystick, the fire button and the pause button (touch devices only)
+  ctx.save();
+  const stick = touch.stickId !== null;
+  const bx = stick ? touch.sx : 150, by = stick ? touch.sy : H - 130;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#ffffff";
+  ctx.globalAlpha = stick ? 0.5 : 0.22;
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.beginPath(); ctx.arc(bx, by, STICK_RADIUS, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "rgba(143,244,255,0.6)";
+  ctx.beginPath(); ctx.arc(bx + (stick ? touch.dx : 0), by + (stick ? touch.dy : 0), 38, 0, TAU); ctx.fill();
+  const fire = touch.fireId !== null;
+  ctx.globalAlpha = fire ? 0.65 : 0.25;
+  ctx.fillStyle = fire ? "rgba(255,120,120,0.5)" : "rgba(255,255,255,0.08)";
+  ctx.beginPath(); ctx.arc(W - 150, H - 130, 70, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.globalAlpha = 0.75;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 20px 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("FIRE", W - 150, H - 123);
+  if (!stick) ctx.fillText("FLY", bx, by + 7);
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(PAUSE_BTN.x, PAUSE_BTN.y, PAUSE_BTN.r, 0, TAU); ctx.stroke();
+  ctx.fillRect(PAUSE_BTN.x - 8, PAUSE_BTN.y - 10, 5, 20);
+  ctx.fillRect(PAUSE_BTN.x + 3, PAUSE_BTN.y - 10, 5, 20);
+  ctx.restore();
+}
+
+function drawPortraitOverlay() { // a touch device held in portrait: ask to rotate, with a play-anyway escape
+  ctx.fillStyle = "rgba(5,8,20,0.94)";
+  ctx.fillRect(0, 0, W, H);
+  centerText("ROTATE YOUR DEVICE", W / 2, H / 2 - 40, 54, "#ffffff");
+  centerText("Chaos Bug Hunt plays in landscape", W / 2, H / 2 + 6, 24, "rgba(255,255,255,0.7)");
+  ctx.strokeStyle = "#8ff4ff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(PORTRAIT_BTN.x, PORTRAIT_BTN.y, PORTRAIT_BTN.w, PORTRAIT_BTN.h);
+  centerText("play anyway", W / 2, PORTRAIT_BTN.y + 58, 34, "#8ff4ff");
+}
+
+function draw(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  // stars
+  for (const s of stars) {
+    ctx.globalAlpha = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * 2 + s.p));
+    ctx.fillStyle = "#cfe2ff";
+    ctx.fillRect(s.x, s.y, s.r, s.r);
+  }
+  ctx.globalAlpha = 1;
+
+  if (state === "playing" || state === "paused" || state === "gameover") {
+    if (shake > 0) ctx.translate(rand(-1, 1) * shake * 12, rand(-1, 1) * shake * 12);
+
+    for (const h of hearts) drawHeart(h.x, h.y, 14, h.t, true);
+    if (helper) {
+      ctx.save();
+      ctx.translate(helper.x, helper.y);
+      ctx.rotate(Math.atan2(helper.vy, helper.vx));
+      ctx.fillStyle = "#7fffb0";
+      ctx.strokeStyle = "#2fae6f";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(12, 0); ctx.lineTo(-6, -6); ctx.lineTo(-6, 6);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      if (helper.hp < helper.maxHp) {
+        const w = 30, frac = Math.max(0, helper.hp / helper.maxHp);
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(helper.x - w / 2, helper.y - 20, w, 4);
+        ctx.fillStyle = "#7fffb0";
+        ctx.fillRect(helper.x - w / 2, helper.y - 20, w * frac, 4);
+      }
+    }
+    for (const g of guns) {
+      const bob = Math.sin(g.t * 3) * 5;
+      ctx.save();
+      ctx.shadowColor = "#ffe066";
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y + bob, 16, 0, TAU);
+      ctx.fillStyle = "rgba(255,224,102,0.18)";
+      ctx.fill();
+      ctx.restore();
+      ctx.font = "28px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("🔫", g.x, g.y + bob + 10);
+      ctx.textAlign = "left";
+    }
+    for (const b of bugs) {
+      drawBug(b);
+      if (b.type === "boss") {
+        // boss health bar
+        const w = 76, frac = Math.max(0, b.hp / b.maxHp);
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(b.x - w / 2, b.y - b.r - 20, w, 7);
+        ctx.fillStyle = "#ff7ab8";
+        ctx.fillRect(b.x - w / 2, b.y - b.r - 20, w * frac, 7);
+      } else if (b.type === "secretboss") {
+        drawSecretBossBar(b);
+      }
+    }
+
+    // shots
+    ctx.strokeStyle = "#8ff4ff";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.shadowColor = "#8ff4ff";
+    ctx.shadowBlur = 8;
+    for (const s of shots) {
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.vx * 0.03, s.y - s.vy * 0.03);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+
+    drawPlayer();
+
+    for (const q of particles) {
+      ctx.globalAlpha = Math.max(0, q.life / q.max);
+      ctx.fillStyle = q.color;
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.font = "bold 16px 'Segoe UI', sans-serif";
+    ctx.textAlign = "center";
+    for (const f of floats) {
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.txt, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+  }
+
+  // HUD
+  if (state === "playing" || state === "paused" || state === "gameover") {
+    for (let i = 0; i < player.maxHp; i++) drawHeart(34 + i * 30, 30, 13, t, i < player.hp);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "bold 18px 'Segoe UI', sans-serif";
+    ctx.fillText("LEVEL " + level, 24, 66);
+    const prog = quota > 0 ? Math.min(1, levelKills / quota) : 0;
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(24, 74, 150, 6);
+    ctx.fillStyle = "#8ff4ff";
+    ctx.fillRect(24, 74, 150 * prog, 6);
+    ctx.font = "12px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fillText(levelKills + " / " + quota + "  kills to clear", 24, 94);
+    if (levelKills >= quota && bugs.some(b => b.type === "boss" || b.type === "secretboss")) {
+      ctx.fillStyle = "#ff7ab8";
+      ctx.fillText("defeat the boss to advance!", 24, 110);
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "bold 22px 'Segoe UI', sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("SCORE  " + score, W - 24, 36);
+    ctx.font = "14px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillText("BEST  " + Math.max(best, score), W - 24, 56);
+    ctx.textAlign = "left";
+    ctx.fillText("KILLS  " + kills, 24, H - 18);
+    ctx.fillText("TIME  " + Math.floor(time) + "s", 120, H - 18);
+    if (player.invincibleTimer > 0) {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "bold 16px 'Segoe UI', sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText("INVINCIBLE " + fmtClock(player.invincibleTimer), W - 24, 80);
+      ctx.textAlign = "left";
+    }
+  }
+
+  if (touchMode && (state === "playing" || state === "paused")) drawTouchControls();
+
+  // toasts (rendered regardless of state, so a menu-time unlock toast is visible too)
+  ctx.textAlign = "center";
+  ctx.font = "bold 20px 'Segoe UI', sans-serif";
+  toasts.forEach((tst, i) => {
+    const age = 2.8 - tst.life;
+    let y;
+    if (age < 0.3) y = -40 + (80) * (age / 0.3);
+    else if (tst.life < 0.5) y = 40 * (tst.life / 0.5);
+    else y = 40;
+    y += i * 36;
+    ctx.globalAlpha = Math.min(1, tst.life);
+    ctx.fillStyle = "rgba(10,14,30,0.75)";
+    const w = ctx.measureText(tst.text).width + 40;
+    ctx.fillRect(W / 2 - w / 2, y - 22, w, 32);
+    ctx.fillStyle = "#ffe066";
+    ctx.fillText(tst.text, W / 2, y);
+  });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "left";
+
+  if (state === "playing" && phase === "intro") {
+    ctx.fillStyle = "rgba(5,8,20,0.4)";
+    ctx.fillRect(0, 0, W, H);
+    centerText("LEVEL " + level, W / 2, H / 2 - 14, 58, "#ffffff");
+    centerText("Kill " + quota + " bugs to advance", W / 2, H / 2 + 30, 18, "rgba(255,255,255,0.75)");
+  } else if (state === "playing" && phase === "clear") {
+    ctx.fillStyle = "rgba(5,8,20,0.4)";
+    ctx.fillRect(0, 0, W, H);
+    centerText("LEVEL " + level + " CLEAR!", W / 2, H / 2 - 14, 54, "#8ff4ff");
+    centerText("+" + (50 * level) + " bonus  •  level " + (level + 1) + " incoming…", W / 2, H / 2 + 30, 18, "rgba(255,255,255,0.75)");
+  }
+
+  if (state === "menu") {
+    drawMenu(t);
+  } else if (state === "naming") {
+    drawNaming(t);
+  } else if (state === "leaderboard") {
+    drawLeaderboard(t);
+  } else if (state === "paused") {
+    ctx.fillStyle = "rgba(5,8,20,0.6)";
+    ctx.fillRect(0, 0, W, H);
+    centerText("PAUSED", W / 2, H / 2 - 10, 40, "#ffffff");
+    centerText(touchMode ? "tap to resume" : "press P to resume", W / 2, H / 2 + 30, 18, "rgba(255,255,255,0.7)");
+  } else if (state === "gameover") {
+    ctx.fillStyle = "rgba(5,8,20,0.72)";
+    ctx.fillRect(0, 0, W, H);
+    centerText("GAME OVER", W / 2, H / 2 - 74, 52, "#ff6b6b");
+    centerText("PLANE CRASHED", W / 2, H / 2 - 34, 24, "rgba(255,107,107,0.85)");
+    centerText("Score  " + score, W / 2, H / 2 + 10, 26, "#ffffff");
+    centerText("Level  " + level + "      Best  " + best, W / 2, H / 2 + 44, 20, "rgba(255,255,255,0.7)");
+    if (Math.floor(t * 2) % 2 === 0) centerText(touchMode ? "Tap to fly again" : "Press ENTER to fly again", W / 2, H / 2 + 92, 20, "#8ff4ff");
+  }
+  if (isPortrait()) drawPortraitOverlay();
+}
+
+if (sharedBoardsOn()) { // fetch the shared boards now, and again whenever the browser comes back online
+  addEventListener("online", () => { syncBoards(); });
+  syncBoards();
+}
+
+/* ---------------- main loop ---------------- */
+let last = performance.now();
+function frame(now) {
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.05) dt = 0.05;
+  if (isPortrait() && state === "playing") state = "paused"; // a touch device held in portrait pauses and asks to rotate
+  if (state === "playing") update(dt);
+  if (shake > 0) shake = Math.max(0, shake - dt * 1.4); // shake always ends, even on game over
+  draw(now / 1000);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
