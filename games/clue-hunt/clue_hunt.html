@@ -3737,7 +3737,10 @@ function sellItem(name) {
 }
 
 </script>
-<audio id="ra-bgm" src="../../music/game-1.wav" loop preload="auto"></audio>
+<audio id="ra-bgm" loop preload="auto">
+  <source src="../../music/game-1.m4a" type="audio/mp4">
+  <source src="../../music/game-1.wav" type="audio/wav">
+</audio>
 <button id="ra-bgm-btn" title="Music" style="position:fixed;top:8px;left:8px;z-index:99999;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:17px;cursor:pointer;line-height:1">🎵</button>
 <script>
 (function(){

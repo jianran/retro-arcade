@@ -247,9 +247,12 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 <div class="scanlines"></div>
 <div class="vignette"></div>
 
-<audio id="bgm" src="music/arcade-bgm.wav" loop preload="auto"></audio>
+<audio id="bgm" loop preload="auto">
+  <source src="music/arcade-bgm.m4a" type="audio/mp4">
+  <source src="music/arcade-bgm.wav" type="audio/wav">
+</audio>
 
-<button class="token-pill music-pill" id="musicBtn" title="Toggle music">🎵</button>
+<button class="token-pill music-pill" id="musicBtn" title="Toggle music">🎵 Music</button>
 <button class="token-pill" id="tokenPill" title="Token Shop">🪙 <span id="tokenCount">0</span><span class="plus">＋</span></button>
 
 <header>
@@ -636,6 +639,14 @@ function toggleMusic(){
 musicBtn.addEventListener("click", toggleMusic);
 if (musicOn()){ bgm.play().catch(() => {}); }   // browsers may still block until first tap
 musicUI();
+// Any first tap/key on the page also starts the lobby music if enabled —
+// mobile browsers need that gesture, and this makes it effortless.
+// (Skip taps on the music button itself: its click handler decides.)
+["pointerdown", "keydown"].forEach(t =>
+  window.addEventListener(t, e => {
+    if (e.target && e.target.closest && e.target.closest("#musicBtn")) return;
+    if (musicOn() && bgm.paused) bgm.play().catch(() => {});
+  }, { passive: true }));
 document.getElementById("btnShopClose").addEventListener("click", closeShop);
 document.getElementById("btnPay").addEventListener("click", async () => {
   if (shopQr.hidden){ shopQr.hidden = false; await buyTokens(); }
