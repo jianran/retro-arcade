@@ -153,6 +153,76 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 .loader[hidden]{display:none}
 .player-hint{text-align:center;padding:7px 10px;font-size:11px;color:var(--faint);flex-shrink:0}
 
+/* ---- token HUD & shop ---- */
+.token-pill{
+  position:fixed;top:16px;right:16px;z-index:70;
+  display:flex;align-items:center;gap:7px;
+  background:rgba(10,8,24,.82);border:1px solid rgba(255,209,102,.4);
+  color:var(--gold);font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;
+  padding:9px 14px;border-radius:99px;cursor:pointer;
+  backdrop-filter:blur(6px);
+  box-shadow:0 0 18px rgba(255,209,102,.15);
+  transition:transform .12s,box-shadow .12s;
+}
+.token-pill:hover{transform:translateY(-1px);box-shadow:0 0 26px rgba(255,209,102,.3)}
+.token-pill .plus{opacity:.6;font-size:12px}
+.cost{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:12px;font-weight:700;color:var(--gold);white-space:nowrap;
+  border:1px solid rgba(255,209,102,.35);border-radius:9px;
+  padding:8px 10px;background:rgba(255,209,102,.07);
+}
+.shop{position:fixed;inset:0;z-index:85;background:rgba(5,4,12,.75);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.shop[hidden]{display:none}
+.shop-panel{
+  width:min(420px,100%);
+  background:linear-gradient(180deg,#141126,#0d0b1d);
+  border:1px solid var(--border);border-radius:18px;
+  padding:26px 24px;text-align:center;
+  display:flex;flex-direction:column;gap:14px;
+  box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 40px rgba(255,209,102,.07);
+}
+.shop-title{font-family:'Press Start 2P',monospace;font-size:16px;margin:0;color:var(--gold);
+  text-shadow:0 0 16px rgba(255,209,102,.4)}
+.shop-balance{margin:0;color:var(--text);font-size:15px}
+.shop-balance b{color:var(--gold)}
+.shop-info{margin:0;color:var(--dim);font-size:13px;line-height:1.6}
+.shop-buy{
+  background:linear-gradient(135deg,#ffd166,#f0a830);color:#1a1204;border:0;
+  border-radius:12px;padding:13px;cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:15px;letter-spacing:.5px;
+  box-shadow:0 0 24px rgba(255,209,102,.3);
+  transition:transform .12s,filter .12s;
+}
+.shop-buy:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.shop-divider{display:flex;align-items:center;gap:10px;color:var(--faint);
+  font-size:11px;letter-spacing:2px;text-transform:uppercase}
+.shop-divider::before,.shop-divider::after{content:"";flex:1;height:1px;background:var(--border)}
+.shop-redeem{display:flex;gap:8px}
+#codeInput{
+  flex:1;background:#0a0916;border:1px solid var(--border);border-radius:10px;
+  color:var(--text);padding:11px 12px;font-size:13px;letter-spacing:.5px;
+  text-align:center;outline:none;min-width:0;
+}
+#codeInput:focus{border-color:var(--gold)}
+#btnRedeem{
+  background:transparent;border:1px solid var(--gold);color:var(--gold);
+  border-radius:10px;padding:0 16px;cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;
+  transition:background .15s;
+}
+#btnRedeem:hover{background:rgba(255,209,102,.1)}
+.shop-msg{min-height:18px;margin:0;font-size:13px}
+.shop-msg.ok{color:#4ade80}
+.shop-msg.err{color:#ff6b6b}
+.shop-close{
+  background:transparent;border:1px solid var(--border);color:var(--dim);
+  border-radius:10px;padding:9px;cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:1px;font-size:13px;
+}
+.shop-close:hover{color:var(--text)}
+
 @media (prefers-reduced-motion: reduce){
   .glow,.kicker,.loader{animation:none}
   h1{animation:none}
@@ -166,6 +236,8 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 <div class="scanlines"></div>
 <div class="vignette"></div>
 
+<button class="token-pill" id="tokenPill" title="Token Shop">🪙 <span id="tokenCount">0</span><span class="plus">＋</span></button>
+
 <header>
   <div class="kicker">★ Insert Coin ★</div>
   <h1>RETRO <span class="accent">ARCADE</span></h1>
@@ -177,6 +249,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 </main>
 
 <footer>
+  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for $1 in the Token Shop.</p>
   <p><b>💡 Runs fully offline</b> — double-click <code>index.html</code> and play. Only Hogwarts Game Room (and the display fonts) need internet.</p>
   <p><b>🕵️ Clue Hunt multiplayer</b> — run <code>bash games/clue-hunt/start.sh</code> to start its server, then share the link it prints.</p>
   <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>8</code> launch games.</p>
@@ -195,24 +268,40 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
   <div class="player-hint">ESC exits · the game's own keys work inside the window</div>
 </div>
 
+<div class="shop" id="shop" hidden>
+  <div class="shop-panel">
+    <h2 class="shop-title">Token Shop</h2>
+    <p class="shop-balance">You have <b>🪙 <span id="shopBalance">0</span></b></p>
+    <p class="shop-info" id="shopInfo">5 free tokens arrive every morning — unused ones stack up.</p>
+    <button class="shop-buy" id="btnPay">💰 Buy 5 tokens — $1</button>
+    <div class="shop-divider"><span>or enter a top-up code</span></div>
+    <div class="shop-redeem">
+      <input id="codeInput" placeholder="A1B2C3D4.XyZ… (paste redeem string)" maxlength="130" autocomplete="off" spellcheck="false" aria-label="Redeem string">
+      <button id="btnRedeem">Redeem</button>
+    </div>
+    <p class="shop-msg" id="shopMsg"></p>
+    <button class="shop-close" id="btnShopClose">Close</button>
+  </div>
+</div>
+
 <script>
 "use strict";
 const GAMES = [
-  {id:"dice",      name:"Dice & Boxes Duel",  icon:"🎲", accent:"#ff6b6b", url:"games/dots-and-boxes/dots-and-boxes.html",
+  {id:"dice",      name:"Dice & Boxes Duel",  icon:"🎲", accent:"#ff6b6b", cost:1, url:"games/dots-and-boxes/dots-and-boxes.html",
    tag:"Hotseat two-player board duel — roll the dice, grab boxes, outscore your rival.", badges:["2P Hotseat"]},
-  {id:"elemental", name:"Elemental Merge",    icon:"🧪", accent:"#4ade80", url:"games/elemental-merge/index.html",
+  {id:"elemental", name:"Elemental Merge",    icon:"🧪", accent:"#4ade80", cost:3, url:"games/elemental-merge/index.html",
    tag:"Merge elemental units, fight waves, defend your base.", badges:["Strategy"]},
-  {id:"bomb",      name:"Bomb Battle",        icon:"💣", accent:"#ffe066", url:"games/bomb-battle/bomb-battle.html",
+  {id:"bomb",      name:"Bomb Battle",        icon:"💣", accent:"#ffe066", cost:1, url:"games/bomb-battle/bomb-battle.html",
    tag:"Neon paddle duel versus the CPU on a black-void court.", badges:["VS CPU"]},
-  {id:"clue",      name:"Clue Hunt",          icon:"🕵️", accent:"#00e5ff", url:"games/clue-hunt/clue_hunt.html",
+  {id:"clue",      name:"Clue Hunt",          icon:"🕵️", accent:"#00e5ff", cost:1, url:"games/clue-hunt/clue_hunt.html",
    tag:"A terminal mystery — follow the clues, explore the locations, crack the case.", badges:["Mystery","LAN Server"]},
-  {id:"tower",     name:"GameTower",          icon:"🗼", accent:"#b18cff", url:"games/game-tower/index.html",
+  {id:"tower",     name:"GameTower",          icon:"🗼", accent:"#b18cff", cost:1, url:"games/game-tower/index.html",
    tag:"Climb 20 floors of arcade challenges — 3 lives for the whole run.", badges:["20 Floors"]},
-  {id:"bug",       name:"Chaos Bug Hunt",     icon:"🐛", accent:"#a3e635", url:"games/bug-hunter/bug-hunter.html",
+  {id:"bug",       name:"Chaos Bug Hunt",     icon:"🐛", accent:"#a3e635", cost:3, url:"games/bug-hunter/bug-hunter.html",
    tag:"Fly the jet, hunt the bugs, dodge the stalkers, beat the boss.", badges:["Shooter"]},
-  {id:"hogwarts",  name:"Hogwarts Game Room", icon:"🧙", accent:"#ff9f43", url:"https://jianran.github.io/hogwarts-game-room/",
+  {id:"hogwarts",  name:"Hogwarts Game Room", icon:"🧙", accent:"#ff9f43", cost:1, url:"https://jianran.github.io/hogwarts-game-room/",
    tag:"Wizarding-world mini-games, played straight from the web.", badges:["Online"]},
-  {id:"snowman",   name:"Snowman Bros",       icon:"⛄", accent:"#66ccff", url:"games/snowman-bros/index.html",
+  {id:"snowman",   name:"Snowman Bros",       icon:"⛄", accent:"#66ccff", cost:1, url:"games/snowman-bros/index.html",
    tag:"Frosty platforming for one or two players — clear the levels together.", badges:["1–2P"]},
 ];
 
@@ -222,6 +311,13 @@ const playerBar = player.querySelector(".player-bar");
 const playerTitle = document.getElementById("playerTitle");
 const frame = document.getElementById("frame");
 const loader = document.getElementById("loader");
+const shop = document.getElementById("shop");
+const shopBalance = document.getElementById("shopBalance");
+const shopInfo = document.getElementById("shopInfo");
+const shopMsg = document.getElementById("shopMsg");
+const codeInput = document.getElementById("codeInput");
+const tokenPill = document.getElementById("tokenPill");
+const tokenCount = document.getElementById("tokenCount");
 let current = null;
 
 grid.innerHTML = GAMES.map(g => `
@@ -231,10 +327,89 @@ grid.innerHTML = GAMES.map(g => `
     <p class="tag">${g.tag}</p>
     <div class="badges">${g.badges.map(b => `<span class="badge">${b}</span>`).join("")}</div>
     <div class="actions">
+      <span class="cost">🪙 ${g.cost}</span>
       <button class="btn-play" data-id="${g.id}">▶ Play</button>
       <button class="btn-open" data-id="${g.id}" title="Open in a new tab">↗</button>
     </div>
   </article>`).join("");
+
+/* ---- token system ----
+   5 free tokens per day (unused ones stack up). Elemental Merge and Chaos Bug
+   Hunt cost 3, every other game costs 1. $1 buys 5 tokens in the Token Shop.
+   The balance lives in this browser (localStorage) — a static site has no
+   server, so each device keeps its own balance and code history. Top-up codes
+   are one-time-per-device, rotate per purchase, and expire after a day. */
+const PAY_URL = "https://example.com/pay"; // ← REPLACE with your real payment link
+const DAILY = 5, BUY = 5;
+// Public verification key for top-up redeem strings. Codes are signed by the
+// arcade owner's private key (kept in the local topup.html generator, not
+// published), so the public site can CHECK codes but nobody reading this
+// source can forge one.
+const PUB_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfmocgoIVawoS5cIQIPJSdfFbi70T4l2n4y4miLHq7zjaPDM1dFAyDp8AWaK4yqP0fR_i_mH1PnsRTcR73wo6iA";
+const LS_T = "ra_tokens", LS_D = "ra_day", LS_U = "ra_codes_used";
+
+const dayStr = (off = 0) => {
+  const d = new Date(Date.now() - off * 864e5);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const b64urlToBytes = s => {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+};
+const bal = () => parseInt(localStorage.getItem(LS_T) || "0", 10) || 0;
+const setBal = n => { localStorage.setItem(LS_T, String(Math.max(0, n))); updateTokenUI(); };
+const usedCodes = () => { try { return JSON.parse(localStorage.getItem(LS_U) || "[]"); } catch (e) { return []; } };
+
+function updateTokenUI(){
+  tokenCount.textContent = bal();
+  shopBalance.textContent = bal();
+}
+function refreshDaily(){
+  const today = dayStr();
+  if (localStorage.getItem(LS_D) !== today){
+    localStorage.setItem(LS_D, today);
+    setBal(bal() + DAILY);
+  }
+  updateTokenUI();
+}
+function spend(cost, name){
+  refreshDaily();
+  if (bal() >= cost){ setBal(bal() - cost); return true; }
+  openShop(`“${name}” costs 🪙 ${cost} — you only have 🪙 ${bal()}.`);
+  return false;
+}
+function openShop(info){
+  shopInfo.textContent = info || "5 free tokens arrive every morning — unused ones stack up.";
+  setShopMsg("", "");
+  codeInput.value = "";
+  shop.hidden = false;
+  updateTokenUI();
+}
+function closeShop(){ shop.hidden = true; }
+function setShopMsg(msg, cls){ shopMsg.textContent = msg; shopMsg.className = "shop-msg " + (cls || ""); }
+
+async function verifyRedeem(code, sig, day){
+  const key = await crypto.subtle.importKey("spki", b64urlToBytes(PUB_KEY),
+    { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  return crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key,
+    b64urlToBytes(sig), new TextEncoder().encode(`ARCADE|${code}|${day}`));
+}
+async function redeem(input){
+  const m = (input || "").trim().replace(/\s+/g, "").match(/^([0-9A-Fa-f]{8})\.([A-Za-z0-9_-]+)$/);
+  if (!m) return { ok: false, msg: "Paste the full redeem string you received (looks like A1B2C3D4.XyZ…)." };
+  const code = m[1].toUpperCase(), sig = m[2];
+  if (usedCodes().includes(code)) return { ok: false, msg: "This redeem string was already used on this device." };
+  // Redeem strings are valid today and yesterday (timezone / late-night grace)
+  for (const off of [0, 1]){
+    if (await verifyRedeem(code, sig, dayStr(off))){
+      localStorage.setItem(LS_U, JSON.stringify([...usedCodes(), code]));
+      setBal(bal() + BUY);
+      return { ok: true, msg: `+${BUY} tokens! Balance: 🪙 ${bal()}.` };
+    }
+  }
+  return { ok: false, msg: "Invalid redeem string. Each one works once and expires after a day." };
+}
 
 let loadTimer = null;
 function hideLoader(){
@@ -242,6 +417,7 @@ function hideLoader(){
   if (loadTimer){ clearTimeout(loadTimer); loadTimer = null; }
 }
 function play(g){
+  if (!spend(g.cost, g.name)) return;
   current = g;
   playerTitle.textContent = g.name;
   playerBar.style.setProperty("--accent", g.accent);
@@ -273,8 +449,27 @@ frame.addEventListener("load", () => { if (!player.hidden) hideLoader(); });
 document.getElementById("btnExit").addEventListener("click", exit);
 document.getElementById("btnNewTab").addEventListener("click", () => { if (current) openTab(current); });
 
+tokenPill.addEventListener("click", () => openShop());
+document.getElementById("btnShopClose").addEventListener("click", closeShop);
+document.getElementById("btnPay").addEventListener("click", () => {
+  window.open(PAY_URL, "_blank", "noopener");
+  setShopMsg("After paying, enter the code you received.", "ok");
+});
+document.getElementById("btnRedeem").addEventListener("click", async () => {
+  const r = await redeem(codeInput.value);
+  setShopMsg(r.msg, r.ok ? "ok" : "err");
+});
+codeInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("btnRedeem").click();
+  e.stopPropagation();   // don't trigger hub shortcuts while typing
+});
+
 document.addEventListener("keydown", e => {
   if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!shop.hidden){
+    if (e.key === "Escape") closeShop();
+    return;
+  }
   if (!player.hidden){
     if (e.key === "Escape") exit();
     return;
@@ -282,6 +477,22 @@ document.addEventListener("keydown", e => {
   const n = Number(e.key);
   if (n >= 1 && n <= GAMES.length) play(GAMES[n - 1]);
 });
+
+refreshDaily();
+
+// Redeem link (e.g. …/#r=A1B2C3D4.XXXX…): applies the top-up automatically.
+// Runs on load AND on hashchange — on phones the arcade tab may already be
+// open, so tapping the link may only change the hash without reloading.
+function redeemFromHash(){
+  if (!location.hash.startsWith("#r=")) return;
+  redeem(location.hash.slice(3)).then(r => {
+    history.replaceState(null, "", location.pathname + location.search);
+    openShop(r.ok ? "Payment received — tokens added 🎉" : "That redeem link didn't work.");
+    setShopMsg(r.msg, r.ok ? "ok" : "err");
+  });
+}
+redeemFromHash();
+window.addEventListener("hashchange", redeemFromHash);
 </script>
 </body>
 </html>
