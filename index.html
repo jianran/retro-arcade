@@ -166,6 +166,8 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 }
 .token-pill:hover{transform:translateY(-1px);box-shadow:0 0 26px rgba(255,209,102,.3)}
 .token-pill .plus{opacity:.6;font-size:12px}
+.music-pill{left:16px;right:auto;transition:opacity .2s}
+.music-pill.off{opacity:.4}
 .cost{
   display:inline-flex;align-items:center;gap:4px;
   font-size:12px;font-weight:700;color:var(--gold);white-space:nowrap;
@@ -245,6 +247,9 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 <div class="scanlines"></div>
 <div class="vignette"></div>
 
+<audio id="bgm" src="music/arcade-bgm.wav" loop preload="auto"></audio>
+
+<button class="token-pill music-pill" id="musicBtn" title="Toggle music">🎵</button>
 <button class="token-pill" id="tokenPill" title="Token Shop">🪙 <span id="tokenCount">0</span><span class="plus">＋</span></button>
 
 <header>
@@ -577,6 +582,7 @@ function hideLoader(){
 }
 async function play(g){
   if (!(await spend(g.cost, g.name))) return;
+  if (!bgm.paused) bgm.pause();   // games have their own audio
   current = g;
   playerTitle.textContent = g.name;
   playerBar.style.setProperty("--accent", g.accent);
@@ -594,6 +600,7 @@ function exit(){
   document.body.style.overflow = "";
   current = null;
   hideLoader();
+  if (musicOn()) bgm.play().catch(() => {});   // back to the arcade lobby
 }
 function openTab(g){ window.open(g.url, "_blank", "noopener"); }
 
@@ -609,6 +616,26 @@ document.getElementById("btnExit").addEventListener("click", exit);
 document.getElementById("btnNewTab").addEventListener("click", () => { if (current) openTab(current); });
 
 tokenPill.addEventListener("click", () => openShop());
+
+/* ---- background music ---- */
+const bgm = document.getElementById("bgm");
+const musicBtn = document.getElementById("musicBtn");
+bgm.volume = 0.35;
+const musicOn = () => localStorage.getItem("ra_music") !== "off";
+function musicUI(){ musicBtn.classList.toggle("off", bgm.paused); }
+function toggleMusic(){
+  if (bgm.paused){
+    bgm.play().catch(() => {});
+    localStorage.setItem("ra_music", "on");
+  } else {
+    bgm.pause();
+    localStorage.setItem("ra_music", "off");
+  }
+  musicUI();
+}
+musicBtn.addEventListener("click", toggleMusic);
+if (musicOn()){ bgm.play().catch(() => {}); }   // browsers may still block until first tap
+musicUI();
 document.getElementById("btnShopClose").addEventListener("click", closeShop);
 document.getElementById("btnPay").addEventListener("click", async () => {
   if (shopQr.hidden){ shopQr.hidden = false; await buyTokens(); }
