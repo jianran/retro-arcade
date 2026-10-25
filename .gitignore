@@ -2,3 +2,4 @@
 __pycache__/
 games/clue-hunt/shared_state.json
 topup.html
+supabase/.temp/
