@@ -205,9 +205,6 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 #qrWrap svg{width:230px;height:230px;background:#fff;border-radius:12px;padding:6px;
   border:1px solid var(--border)}
 .qr-hint{min-height:16px}
-.pay-choice{display:flex;flex-direction:column;gap:10px;width:100%}
-.pay-choice .shop-buy{width:100%}
-.paypal-btn{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;box-shadow:0 0 24px rgba(59,130,246,.3)}
 .shop-divider{display:flex;align-items:center;gap:10px;color:var(--faint);
   font-size:11px;letter-spacing:2px;text-transform:uppercase}
 .shop-divider::before,.shop-divider::after{content:"";flex:1;height:1px;background:var(--border)}
@@ -528,19 +525,6 @@ function showStaticQr(){
   qrHint.textContent = "";
   setShopMsg("Pay the owner $1 — then tap “I've paid”.", "ok");
 }
-function showProviderChoice(){
-  shopQr.hidden = false;
-  qrStatic.hidden = true;
-  qrHint.textContent = "Choose how you'll pay — your tokens appear automatically once the payment completes.";
-  qrWrap.innerHTML = `
-    <div class="pay-choice">
-      <button class="shop-buy" id="btnToss">🇰🇷 Korean players — card / Toss (₩1,400)</button>
-      <button class="shop-buy paypal-btn" id="btnPayPal">🌏 International — PayPal ($1)</button>
-    </div>`;
-  document.getElementById("btnToss").addEventListener("click", () => buyVia("buy-toss"));
-  document.getElementById("btnPayPal").addEventListener("click", () => buyVia("buy-paypal"));
-  setShopMsg("", "");
-}
 async function buyVia(fn){
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
@@ -560,7 +544,7 @@ async function buyVia(fn){
   }
 }
 async function buyTokens(){
-  if (backendOn || await sbInit()){ showProviderChoice(); return; }
+  if (backendOn || await sbInit()){ await buyVia("buy-toss"); return; }
   showStaticQr();
 }
 
