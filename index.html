@@ -286,8 +286,8 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
     <div class="shop-qr" id="shopQr" hidden>
       <div id="qrWrap"></div>
       <div id="qrStatic">
-        <img src="pay-qr.png" alt="Payment QR code — scan to pay">
-        <p>Pay the owner ₩1,500 (this Alipay QR works too).<br>Then tap “I've paid” below.</p>
+        <img src="pay-qr.png" alt="KakaoPay QR — scan to send ₩1,500">
+        <p>Scan with KakaoPay to send ₩1,500.<br>Then tap “I've paid” below.</p>
         <button class="shop-buy paid-btn" id="btnPaid">✅ I've paid — add my tokens</button>
       </div>
       <p class="qr-hint" id="qrHint"></p>
@@ -523,7 +523,7 @@ function showStaticQr(){
   qrStatic.hidden = false;
   qrWrap.innerHTML = "";
   qrHint.textContent = "";
-  setShopMsg("Pay the owner ₩1,500 — then tap “I've paid”.", "ok");
+  setShopMsg("Scan with KakaoPay to send ₩1,500 — then tap “I've paid”.", "ok");
 }
 async function buyVia(fn){
   try {
