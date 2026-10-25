@@ -19,7 +19,8 @@ A neon arcade hub — 8 games, one cabinet. Open `index.html` and play.
 
 - 5 free tokens per day — unused ones stack up
 - Elemental Merge and Chaos Bug Hunt cost 3 tokens; all other games cost 1
-- Buy 5 tokens for ¥7 in the Token Shop (🪙 button, top right) — the Buy button shows the Alipay QR to scan; after paying, the player gets a top-up code from the owner
+- Buy 5 tokens for ¥7 in the Token Shop (🪙 button, top right) — the Buy button shows the Alipay QR; the player scans, pays, and taps "I've paid" to receive the tokens (honor system — no payment verification yet). The owner can still enforce payments by giving out signed top-up codes from `topup.html` instead.
+- Automatic verified payments (Supabase + Alipay 当面付 merchant) are built and ready — see `SETUP.md` for the two account setups needed to switch it on.
 - Top-up codes: the arcade owner generates redeem links/strings with the private `topup.html` generator (kept out of this repo on purpose). The public site only holds the verification key, so codes can't be forged from the source. Each purchase gets a unique one, works once per device, and expires after a day.
 - Balances live in each browser (localStorage) — a static site has no server.
 

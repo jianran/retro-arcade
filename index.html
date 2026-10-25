@@ -196,6 +196,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
   transition:transform .12s,filter .12s;
 }
 .shop-buy:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.paid-btn{background:linear-gradient(135deg,#4ade80,#22c55e);color:#06210f;box-shadow:0 0 24px rgba(74,222,128,.3);margin-top:4px}
 .shop-qr{display:flex;flex-direction:column;align-items:center;gap:10px}
 .shop-qr[hidden]{display:none}
 .shop-qr img{width:230px;height:230px;object-fit:contain;background:#fff;border-radius:12px;
@@ -286,7 +287,8 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
       <div id="qrWrap"></div>
       <div id="qrStatic">
         <img src="pay-qr.png" alt="Payment QR code — scan to pay ¥7">
-        <p>Scan with Alipay to pay ¥7.<br>Then ask for your top-up code.</p>
+        <p>Scan with Alipay to pay ¥7.<br>Then tap “I've paid” below.</p>
+        <button class="shop-buy paid-btn" id="btnPaid">✅ I've paid — add my tokens</button>
       </div>
       <p class="qr-hint" id="qrHint"></p>
     </div>
@@ -509,7 +511,7 @@ function showStaticQr(){
   qrStatic.hidden = false;
   qrWrap.innerHTML = "";
   qrHint.textContent = "";
-  setShopMsg("Scan with Alipay to pay ¥7, then enter your top-up code below.", "ok");
+  setShopMsg("Scan with Alipay to pay ¥7 — then tap “I've paid”.", "ok");
 }
 async function buyTokens(){
   if (backendOn || await sbInit()){
@@ -601,6 +603,11 @@ document.getElementById("btnShopClose").addEventListener("click", closeShop);
 document.getElementById("btnPay").addEventListener("click", async () => {
   if (shopQr.hidden){ shopQr.hidden = false; await buyTokens(); }
   else shopQr.hidden = true;
+});
+document.getElementById("btnPaid").addEventListener("click", () => {
+  setBal(bal() + BUY);
+  shopQr.hidden = true;
+  setShopMsg(`+${BUY} tokens! Balance: 🪙 ${currentBal}.`, "ok");
 });
 document.getElementById("btnRedeem").addEventListener("click", async () => {
   const r = await redeem(codeInput.value);
