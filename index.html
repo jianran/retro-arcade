@@ -258,7 +258,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 </main>
 
 <footer>
-  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for ₩1,500 in the Token Shop.</p>
+  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for ₩1,000 in the Token Shop.</p>
   <p><b>💡 Runs fully offline</b> — double-click <code>index.html</code> and play. Only Hogwarts Game Room (and the display fonts) need internet.</p>
   <p><b>🕵️ Clue Hunt multiplayer</b> — run <code>bash games/clue-hunt/start.sh</code> to start its server, then share the link it prints.</p>
   <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>8</code> launch games.</p>
@@ -282,12 +282,12 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
     <h2 class="shop-title">Token Shop</h2>
     <p class="shop-balance">You have <b>🪙 <span id="shopBalance">0</span></b></p>
     <p class="shop-info" id="shopInfo">5 free tokens arrive every morning — unused ones stack up.</p>
-    <button class="shop-buy" id="btnPay">💰 Buy 5 tokens — ₩1,500</button>
+    <button class="shop-buy" id="btnPay">💰 Buy 5 tokens — ₩1,000</button>
     <div class="shop-qr" id="shopQr" hidden>
       <div id="qrWrap"></div>
       <div id="qrStatic">
-        <img src="pay-qr.png" alt="KakaoPay QR — scan to send ₩1,500">
-        <p>Scan with KakaoPay to send ₩1,500.<br>Then tap “I've paid” below.</p>
+        <img src="pay-qr.png" alt="KakaoPay QR — scan to send ₩1,000">
+        <p>Scan with KakaoPay to send ₩1,000.<br>Then tap “I've paid” below.</p>
         <button class="shop-buy paid-btn" id="btnPaid">✅ I've paid — add my tokens</button>
       </div>
       <p class="qr-hint" id="qrHint"></p>
@@ -357,7 +357,7 @@ grid.innerHTML = GAMES.map(g => `
 
 /* ---- token system ----
    5 free tokens per day (unused ones stack up). Elemental Merge and Chaos Bug
-   Hunt cost 3, every other game costs 1. ₩1,500 buys 5 tokens in the Token Shop.
+   Hunt cost 3, every other game costs 1. ₩1,000 buys 5 tokens in the Token Shop.
    Server mode (public site): balances live in Supabase and the Buy button
    shows a live Alipay QR — tokens arrive automatically when the payment lands.
    Offline fallback (no backend configured or unreachable): the old
@@ -523,7 +523,7 @@ function showStaticQr(){
   qrStatic.hidden = false;
   qrWrap.innerHTML = "";
   qrHint.textContent = "";
-  setShopMsg("Scan with KakaoPay to send ₩1,500 — then tap “I've paid”.", "ok");
+  setShopMsg("Scan with KakaoPay to send ₩1,000 — then tap “I've paid”.", "ok");
 }
 async function buyVia(fn){
   try {
