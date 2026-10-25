@@ -205,6 +205,9 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 #qrWrap svg{width:230px;height:230px;background:#fff;border-radius:12px;padding:6px;
   border:1px solid var(--border)}
 .qr-hint{min-height:16px}
+.pay-choice{display:flex;flex-direction:column;gap:10px;width:100%}
+.pay-choice .shop-buy{width:100%}
+.paypal-btn{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;box-shadow:0 0 24px rgba(59,130,246,.3)}
 .shop-divider{display:flex;align-items:center;gap:10px;color:var(--faint);
   font-size:11px;letter-spacing:2px;text-transform:uppercase}
 .shop-divider::before,.shop-divider::after{content:"";flex:1;height:1px;background:var(--border)}
@@ -525,33 +528,39 @@ function showStaticQr(){
   qrHint.textContent = "";
   setShopMsg("Pay the owner $1 — then tap “I've paid”.", "ok");
 }
-async function buyTokens(){
-  if (backendOn || await sbInit()){
-    try {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/buy-paypal`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ device_id: deviceId() }),
-      });
-      if (r.ok){
-        const d = await r.json();
-        if (d.pay_url){
-          showPayFlow(d.pay_url, d.order_id);
-        } else if (d.qr_code){
-          loadQrLib(() => showDynamicQr(d.qr_code, d.order_id));
-        }
-        return;
-      }
-      // Backend is live but the payment provider failed (e.g. keys not
-      // configured) → surface it; no honor-system fallback while balances are
-      // on the server, or purchases would silently not persist.
-      qrStatic.hidden = true;
-      qrHint.textContent = "Payments are being set up — check back soon!";
-      setShopMsg("Payments are being set up — check back soon!", "err");
-      return;
-    } catch (e){ /* backend unreachable → full offline mode */ }
-    backendOn = false;
+function showProviderChoice(){
+  shopQr.hidden = false;
+  qrStatic.hidden = true;
+  qrHint.textContent = "Choose how you'll pay — your tokens appear automatically once the payment completes.";
+  qrWrap.innerHTML = `
+    <div class="pay-choice">
+      <button class="shop-buy" id="btnToss">🇰🇷 Korean players — card / Toss (₩1,400)</button>
+      <button class="shop-buy paypal-btn" id="btnPayPal">🌏 International — PayPal ($1)</button>
+    </div>`;
+  document.getElementById("btnToss").addEventListener("click", () => buyVia("buy-toss"));
+  document.getElementById("btnPayPal").addEventListener("click", () => buyVia("buy-paypal"));
+  setShopMsg("", "");
+}
+async function buyVia(fn){
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId() }),
+    });
+    if (!r.ok) throw new Error("provider unavailable");
+    const d = await r.json();
+    if (d.pay_url || d.checkout_url){
+      showPayFlow(d.pay_url || d.checkout_url, d.order_id);
+    } else {
+      throw new Error("no checkout url");
+    }
+  } catch (e){
+    setShopMsg("Payment provider is unavailable right now — try again later.", "err");
   }
+}
+async function buyTokens(){
+  if (backendOn || await sbInit()){ showProviderChoice(); return; }
   showStaticQr();
 }
 

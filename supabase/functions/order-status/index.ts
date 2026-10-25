@@ -66,6 +66,15 @@ Deno.serve(async (req) => {
         else if (st === "VOIDED" || st === "PAYER_ACTION_REQUIRED") {
           await supabase.from("orders").update({ status: "closed" }).eq("id", orderId).eq("status", "pending");
         }
+      } else if (order.provider === "toss" && order.external_ref) {
+        // Toss: check the payment order for a DONE payment
+        const auth = btoa(`${Deno.env.get("TOSS_SECRET_KEY")}:`);
+        const res = await fetch(`https://api.tosspayments.com/v1/payments/orders/${order.external_ref}`,
+          { headers: { Authorization: `Basic ${auth}` } });
+        const d = await res.json();
+        if ((d.payments ?? []).some((p: any) => p.status === "DONE")) {
+          await settle();
+        }
       } else {
         // Alipay (or legacy rows without provider)
         const tradeStatus = await queryTrade(order.out_trade_no);

@@ -4,6 +4,18 @@ project_id = "retro-arcade"
 [functions.buy]
 verify_jwt = true
 
+[functions.buy-paypal]
+verify_jwt = true
+
+[functions.buy-toss]
+verify_jwt = true
+
+[functions.toss-page]
+verify_jwt = false
+
+[functions.toss-done]
+verify_jwt = false
+
 [functions.alipay-notify]
 verify_jwt = false
 
