@@ -1566,3 +1566,18 @@ if(hot&&hot.ready) hot.ready(start);
 else start((hot&&hot.data)||{});
 })();
 </script>
+
+<audio id="ra-bgm" src="../../music/game-1.wav" loop preload="auto"></audio>
+<button id="ra-bgm-btn" title="Music" style="position:fixed;top:8px;left:8px;z-index:99999;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:17px;cursor:pointer;line-height:1">🎵</button>
+<script>
+(function(){
+  var a=document.getElementById('ra-bgm'),b=document.getElementById('ra-bgm-btn');
+  if(!a||!b)return;
+  a.volume=0.25;
+  var ui=function(){b.style.opacity=a.paused?0.35:1;};
+  var start=function(){a.play().catch(function(){});ui();};
+  b.addEventListener('click',function(ev){ev.stopPropagation();if(a.paused){start();}else{a.pause();ui();}});
+  ['pointerdown','keydown','touchstart'].forEach(function(t){window.addEventListener(t,start,{once:true,passive:true});});
+  ui();
+})();
+</script>
