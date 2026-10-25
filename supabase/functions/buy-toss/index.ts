@@ -1,7 +1,7 @@
 // POST /functions/v1/buy-toss  { device_id }
-// Creates a Toss Payments order for Korean players (₩1,400 = 5 tokens)
+// Creates a Toss Payments order for Korean players (₩1,500 = 5 tokens)
 // and returns the URL of our hosted checkout page (toss-page).
-// Env secrets: TOSS_CLIENT_KEY, TOSS_SECRET_KEY, TOSS_AMOUNT (default "1400")
+// Env secrets: TOSS_CLIENT_KEY, TOSS_SECRET_KEY, TOSS_AMOUNT (default "1500")
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const cors = {
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
   await supabase.from("players").insert({ device_id: deviceId }, { ignoreDuplicates: true });
 
-  const amount = Deno.env.get("TOSS_AMOUNT") || "1400";
+  const amount = Deno.env.get("TOSS_AMOUNT") || "1500";
   // Toss orderId: 6–64 chars, alphanumeric and dashes only
   const tossOrderId = `ARC-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
 
