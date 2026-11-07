@@ -295,6 +295,7 @@ main{ max-width:960px; margin:0 auto }
 .tchart th{ font-size:9.5px }
 .cell-strong{ background:color-mix(in srgb, var(--moss) 22%, transparent); color:var(--moss) }
 .cell-immune{ background:color-mix(in srgb, var(--blood) 18%, transparent); color:var(--blood) }
+.cell-weak{ background:color-mix(in srgb, var(--muted) 20%, transparent); color:var(--muted) }
 .legend{ font-size:11.5px; color:var(--muted); margin-top:8px }
 
 /* ============ ANIMATIONS ============ */
@@ -391,14 +392,17 @@ const STRONG = {
   Water:  ['Fire','Light','Normal'],
   Fire:   ['Metal','Light','Normal'],
   Earth:  ['Water','Light'],
-  Shadow: ['Metal','Wood','Water','Fire','Earth'],
-  Light:  ['Shadow'],
+  Shadow: ['Metal','Wood','Water','Fire','Earth','Shadow'],
+  Light:  ['Shadow','Light'],
   Normal: [],
 };
 const IMMUNE = { Normal:['Shadow','Light'] };
+const WEAK = { Shadow:['Light'] };
 function mult(attT, defT){
   if ((IMMUNE[defT]||[]).includes(attT)) return 0;
-  return STRONG[attT].includes(defT) ? 1.5 : 1;
+  if (STRONG[attT].includes(defT)) return 1.5;
+  if ((WEAK[attT]||[]).includes(defT)) return 0.5;
+  return 1;
 }
 
 const SPECIES = [
@@ -807,6 +811,7 @@ async function doAttack(att, t){
   if (crit) log(`💥 Critical hit — <b>${t.name}</b> takes ${dmg}!`, 'crit');
   else log(`${t.owner==='player' ? '😖' : '🎯'} <b>${t.name}</b> takes ${dmg} damage.`, 'dmg');
   if (m===1.5) log(`✨ ${att.type} is strong against ${t.type} (+50%).`, 'good');
+  else if (m===0.5) log(`🌫️ ${att.type} attacks are weak against ${t.type} (−50%).`, 'sys');
   renderField();
   await sleep(430);
   if (t.hp<=0) await faint(t);
@@ -1047,8 +1052,8 @@ function openRules(){
   const rows = TYPE_LIST.map(att => {
     const cells = TYPE_LIST.map(def => {
       const v = mult(att, def);
-      const cls = v===1.5 ? 'cell-strong' : v===0 ? 'cell-immune' : '';
-      const txt = v===1.5 ? '1.5' : v===0 ? '0' : '1';
+      const cls = v===1.5 ? 'cell-strong' : v===0 ? 'cell-immune' : v===0.5 ? 'cell-weak' : '';
+      const txt = v===1.5 ? '1.5' : v===0 ? '0' : v===0.5 ? '0.5' : '1';
       return `<td class="${cls}">${txt}</td>`;
     }).join('');
     const i = TYPE_INFO[att];
@@ -1060,8 +1065,8 @@ function openRules(){
       <ul>
         <li>You and the enemy are each dealt <b>5–7 creatures</b>. You field 3; when one falls, you send in another from the bench.</li>
         <li>Every creature has an <b>attribute</b> and Attack / Defense / Speed / HP. Each round, all active creatures act in Speed order.</li>
-        <li><b>Shadow</b> is strong against Metal, Wood, Water, Fire and Earth — but it is weak to <b>Light</b>.</li>
-        <li><b>Light</b> strikes Shadow hard, but is itself beaten by Metal, Wood, Water, Fire and Earth.</li>
+        <li><b>Shadow</b> is strong against Metal, Wood, Water, Fire, Earth and even Shadow itself — but it is weak to <b>Light</b>: Light hits Shadow hard, while Shadow hits Light for only half damage.</li>
+        <li><b>Light</b> strikes Shadow and even Light itself hard, but is itself beaten by Metal, Wood, Water, Fire and Earth.</li>
         <li><b>Normal</b> is immune to Shadow &amp; Light but weak to Fire &amp; Water. Normal creatures don't exist in the wild — only a Summoner can create one.</li>
         <li><b>Defend:</b> when attacked, a creature may defend — damage is halved, but its Defense drops 15% permanently.</li>
         <li><b>Dodge:</b> each creature may attempt up to 5 dodges per battle; each attempt has a 35% chance to evade entirely.</li>
@@ -1077,7 +1082,7 @@ function openRules(){
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <p class="legend"><b>1.5</b> = strong (+50%) · <b>1</b> = normal · <b>0</b> = immune</p>
+      <p class="legend"><b>1.5</b> = strong (+50%) · <b>1</b> = normal · <b>0.5</b> = weak (−50%) · <b>0</b> = immune</p>
       <div class="row"><button onclick="closeModal()">Close</button></div>
     </div>`);
 }
