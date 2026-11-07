@@ -391,7 +391,7 @@ const STRONG = {
   Water:  ['Fire','Light','Normal'],
   Fire:   ['Metal','Light','Normal'],
   Earth:  ['Water','Light'],
-  Shadow: ['Metal','Wood','Water','Fire','Earth','Light'],
+  Shadow: ['Metal','Wood','Water','Fire','Earth'],
   Light:  ['Shadow'],
   Normal: [],
 };
@@ -1060,7 +1060,8 @@ function openRules(){
       <ul>
         <li>You and the enemy are each dealt <b>5–7 creatures</b>. You field 3; when one falls, you send in another from the bench.</li>
         <li>Every creature has an <b>attribute</b> and Attack / Defense / Speed / HP. Each round, all active creatures act in Speed order.</li>
-        <li><b>Shadow</b> is strong against everything except Normal; <b>Light</b> strikes Shadow hard but is beaten by Metal, Wood, Water, Fire and Earth.</li>
+        <li><b>Shadow</b> is strong against Metal, Wood, Water, Fire and Earth — but it is weak to <b>Light</b>.</li>
+        <li><b>Light</b> strikes Shadow hard, but is itself beaten by Metal, Wood, Water, Fire and Earth.</li>
         <li><b>Normal</b> is immune to Shadow &amp; Light but weak to Fire &amp; Water. Normal creatures don't exist in the wild — only a Summoner can create one.</li>
         <li><b>Defend:</b> when attacked, a creature may defend — damage is halved, but its Defense drops 15% permanently.</li>
         <li><b>Dodge:</b> each creature may attempt up to 5 dodges per battle; each attempt has a 35% chance to evade entirely.</li>
