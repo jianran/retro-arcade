@@ -329,7 +329,7 @@
       </div>
       <div class="mbtns">
         <button class="btn primary" id="goDuel">⚔️ Duel — one rival</button>
-        <button class="btn" id="goBrawl">🔥 Brawl — three rivals</button>
+        <button class="btn" id="goBrawl">🔥 Brawl — nine rivals</button>
         <button class="btn" id="goRoster">📜 Roster</button>
       </div>
       <p class="controls-note">Arrow keys move · SPACE casts your special · P pause · M mute · Enter confirm</p>
@@ -975,7 +975,7 @@ let selectedId = null;
 let lastFight = { mode: null, p1: 'Roi' };
 let fighters = [], projectiles = [], particles = [], rings = [], dmgNums = [];
 let beams = [], bolts = [], zones = [];
-let introT = 0, banner2Shown = false, pendingEnd = null;
+let introT = 0, banner2Shown = false, pendingEnd = null, spectating = false;
 let shake = { t: 0, mag: 0 };
 let time = 0, last = 0;
 
@@ -1086,7 +1086,7 @@ function pickEnemyChar(used){
 function startBattle(mode, p1Id, p2Id){
   fighters = []; projectiles = []; particles = []; rings = []; dmgNums = [];
   beams = []; bolts = []; zones = [];
-  shake = { t: 0, mag: 0 }; pendingEnd = null;
+  shake = { t: 0, mag: 0 }; pendingEnd = null; spectating = false;
   battleMode = mode;
   const applyLevel = (f, id) => {
     const lm = levelMult(id);
@@ -1097,8 +1097,10 @@ function startBattle(mode, p1Id, p2Id){
   const p1 = makeFighter(p1Id, 220, 310, 'a', true); p1.fx = 1;
   applyLevel(p1, p1Id);
   fighters.push(p1);
-  const n = mode === 'brawl' ? 3 : 1;
-  const spawns = mode === 'brawl' ? [[230, 180], [680, 180], [450, 540]] : [[680, 310]];
+  const n = mode === 'brawl' ? 9 : 1;
+  const spawns = mode === 'brawl'
+    ? [[230, 180], [680, 180], [450, 540], [350, 90], [650, 420], [250, 430], [700, 80], [150, 420], [820, 340]]
+    : [[680, 310]];
   const used = new Set();
   for (let i = 0; i < n; i++){
     const id = pickEnemyChar(used); used.add(id);
@@ -1269,9 +1271,20 @@ function killFighter(f){
   if (!reducedMotion) shake = { t: 0.25, mag: 0.3 };
   if (!pendingEnd){
     const playerAlive = fighters.some(x => x.team === 'a' && !x.dead);
-    const rivalsAlive = fighters.some(x => x.team !== 'a' && !x.dead);
-    if (!playerAlive) pendingEnd = { won: false, t: 0.9 };
-    else if (!rivalsAlive) pendingEnd = { won: true, t: 0.9 };
+    const rivals = fighters.filter(x => x.team !== 'a' && !x.dead);
+    if (!playerAlive){
+      // brawl: spectate — the surviving NPCs fight on until only one is left
+      if (battleMode === 'brawl' && rivals.length > 1){
+        if (!spectating){
+          spectating = true;
+          showBanner('YOU DIED — LAST ONE STANDING WINS', 1.6);
+        }
+      } else {
+        pendingEnd = { won: false, t: 0.9 };
+      }
+    } else if (rivals.length === 0){
+      pendingEnd = { won: true, t: 0.9 };
+    }
   }
 }
 
@@ -2621,7 +2634,7 @@ function showResult(won){
       showBanner('BRAWL PICK!', 1.8);
       setTimeout(() => { bannerEl.style.color = ''; }, 2000);
     }
-    const r = isBrawlWin ? rollUnlock('epic') : rollUnlock();
+    const r = isBrawlWin ? rollUnlock('rare') : rollUnlock();
     const c = CHARS[r.id];
     if (r.isNew){
       portId = r.id;
