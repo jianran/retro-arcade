@@ -269,7 +269,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
   <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for ₩1,000 in the Token Shop.</p>
   <p><b>💡 Runs fully offline</b> — double-click <code>index.html</code> and play. Only Hogwarts Game Room (and the display fonts) need internet.</p>
   <p><b>🕵️ Clue Hunt multiplayer</b> — run <code>bash games/clue-hunt/start.sh</code> to start its server, then share the link it prints.</p>
-  <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>11</code> launch games.</p>
+  <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>12</code> launch games.</p>
 </footer>
 
 <div class="player" id="player" hidden>
@@ -335,6 +335,8 @@ const GAMES = [
    tag:"Blast waves of demons in the neon arena — weapon drops, rarity loot, endless escalation.", badges:["Arena Shooter","Waves"]},
   {id:"creature",  name:"Creature Clash",     icon:"🐉", accent:"#ffb020", cost:1, url:"games/creature-clash/creature-clash.html?v=3",
    tag:"Draft a trio, read the attribute chart, outduel the night arena — attack, swap, or self-destruct.", badges:["Team Battler","VS CPU"]},
+  {id:"dragon",    name:"Dragon Flight",      icon:"🐲", accent:"#2dd4bf", cost:1, url:"games/dragon-flight/index.html?v=1",
+   tag:"Flap through the sky, dodge obstacles, grab rings — solo or up to 3 players.", badges:["1–3P"]},
 ];
 
 const grid = document.getElementById("grid");
