@@ -1,0 +1,1202 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Creature Clash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Exo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+/* Creature Clash — a night-arena bestiary. Layout: two battlefields stacked
+   around a shared combat log; molten-gold sigils on ink-blue panels. */
+:root{
+  color-scheme: dark;
+  --bg:#0e1526;            /* page ground */
+  --bg-glow:#1c2a4d;       /* radial wash */
+  --panel:#141d33;         /* header, log, modals */
+  --panel-2:#1a2542;       /* raised surface */
+  --card:#1b2745;          /* creature card */
+  --card-2:#202e52;        /* card gradient end */
+  --line:#2b3a63;          /* borders */
+  --line-soft:#24335a;
+  --ink:#e9edf8;           /* main text */
+  --muted:#93a1c4;         /* secondary text */
+  --gold:#e8b64c;          /* accent */
+  --gold-2:#b98a26;        /* accent deep */
+  --gold-ink:#241a04;      /* text on gold */
+  --blood:#f0665e;         /* danger */
+  --moss:#5ccf8a;          /* ok / full hp */
+  --amber:#e8a94e;         /* warn / crit */
+  --shadow:0 10px 26px rgba(4,8,20,.55);
+  --card-shadow:0 6px 18px rgba(4,8,20,.45);
+  --f-display:'Cinzel','Times New Roman',serif;
+  --f-body:'Exo 2',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    color-scheme: light;
+    --bg:#e8edf7; --bg-glow:#cdd9f0;
+    --panel:#f7f9fe; --panel-2:#eef2fb;
+    --card:#ffffff; --card-2:#edf1fa;
+    --line:#c3cfe6; --line-soft:#d5ddf0;
+    --ink:#212a44; --muted:#5c6a8d;
+    --gold:#b07d1e; --gold-2:#8a5f12; --gold-ink:#fff6e0;
+    --blood:#c0392b; --moss:#27804f; --amber:#b5761c;
+    --shadow:0 10px 26px rgba(35,50,90,.16);
+    --card-shadow:0 6px 16px rgba(35,50,90,.12);
+  }
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --bg:#e8edf7; --bg-glow:#cdd9f0;
+  --panel:#f7f9fe; --panel-2:#eef2fb;
+  --card:#ffffff; --card-2:#edf1fa;
+  --line:#c3cfe6; --line-soft:#d5ddf0;
+  --ink:#212a44; --muted:#5c6a8d;
+  --gold:#b07d1e; --gold-2:#8a5f12; --gold-ink:#fff6e0;
+  --blood:#c0392b; --moss:#27804f; --amber:#b5761c;
+  --shadow:0 10px 26px rgba(35,50,90,.16);
+  --card-shadow:0 6px 16px rgba(35,50,90,.12);
+}
+
+/* ============ BASE ============ */
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  min-height:100vh;
+  font-family:var(--f-body);
+  color:var(--ink);
+  background:
+    radial-gradient(1100px 480px at 50% -8%, var(--bg-glow), transparent 62%),
+    var(--bg);
+  background-attachment:fixed;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 48px;
+}
+body::before{
+  content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top,0px);
+  background:var(--panel); z-index:30;
+}
+button{
+  font-family:var(--f-body); font-weight:700; font-size:13px;
+  color:var(--ink); background:var(--panel-2);
+  border:1px solid var(--line); border-radius:10px;
+  padding:8px 14px; cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+button:hover:not(:disabled){ transform:translateY(-1px); box-shadow:var(--card-shadow) }
+button:focus-visible{ outline:2px solid var(--gold); outline-offset:2px }
+button:disabled{ opacity:.4; cursor:not-allowed }
+button.primary{
+  background:linear-gradient(180deg,var(--gold),var(--gold-2));
+  color:var(--gold-ink); border-color:transparent;
+}
+button.danger{ border-color:var(--blood); color:var(--blood) }
+button .sub{ display:block; font-size:10px; font-weight:600; opacity:.85 }
+h1,h2,h3,h4{ font-family:var(--f-display); text-wrap:balance; margin:0 }
+
+/* ============ HEADER ============ */
+header{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:20;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:10px 6px;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+}
+.logo{
+  font-family:var(--f-display); font-weight:800; font-size:19px;
+  letter-spacing:1.5px; color:var(--gold);
+  text-shadow:0 0 18px color-mix(in srgb, var(--gold) 45%, transparent);
+}
+.round{
+  font-weight:800; font-size:12px; color:var(--muted);
+  border:1px solid var(--line); border-radius:999px; padding:5px 12px;
+  font-variant-numeric:tabular-nums;
+}
+.items{ display:flex; gap:8px }
+.item-btn{ border-radius:999px; font-weight:800; letter-spacing:.4px }
+.item-btn.bomb{ border-color:var(--blood); color:var(--blood) }
+.item-btn.sum{ border-color:var(--gold); color:var(--gold) }
+.spacer{ flex:1 }
+.util{ display:flex; gap:6px }
+
+/* ============ LAYOUT ============ */
+main{ max-width:960px; margin:0 auto }
+#battle{ padding-top:10px }
+.field-label{
+  text-align:center; font-weight:800; font-size:10.5px; letter-spacing:2.5px;
+  color:var(--muted); margin:10px 0 6px;
+}
+.field-label.enemy{ color:var(--blood) }
+.field-label.player{ color:var(--gold) }
+
+/* ============ CARDS ============ */
+.actives{
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px; max-width:600px; margin:0 auto;
+}
+.bench{
+  display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+  margin:8px 0 2px; min-height:0;
+}
+.card{
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:10px 8px;
+  background:linear-gradient(180deg,var(--card),var(--card-2));
+  border:1px solid var(--line); border-radius:14px;
+  box-shadow:var(--card-shadow);
+  min-width:0;
+}
+.card .emoji{ font-size:34px; line-height:1; filter:drop-shadow(0 3px 4px rgba(0,0,0,.3)) }
+.card .name{
+  font-family:var(--f-display); font-weight:700; font-size:12px;
+  letter-spacing:.4px; text-align:center; line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.badge{
+  font-size:10px; font-weight:800; letter-spacing:.6px;
+  padding:2px 9px; border-radius:999px; white-space:nowrap;
+}
+.hpbar{
+  width:100%; height:8px; background:var(--line-soft);
+  border-radius:999px; overflow:hidden;
+}
+.hpbar i{ display:block; height:100%; border-radius:999px; transition:width .3s ease }
+.hpbar i.g{ background:var(--moss) }
+.hpbar i.a{ background:var(--amber) }
+.hpbar i.r{ background:var(--blood) }
+.hpnum{ font-size:10px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums }
+.stats{ font-size:10px; font-weight:600; color:var(--muted); font-variant-numeric:tabular-nums }
+.dodges{ font-size:9.5px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums }
+
+.bench-card{ width:112px; padding:7px 6px }
+.bench-card .emoji{ font-size:22px }
+.bench-card .name{ font-size:10px }
+.facedown{ border-style:dashed; opacity:.75 }
+.facedown .emoji{ font-size:22px; filter:none; opacity:.7 }
+.slot-empty{
+  opacity:.35; border-style:dashed; justify-content:center; min-height:110px;
+  color:var(--muted); font-size:18px;
+}
+
+.current{
+  border-color:var(--gold);
+  box-shadow:0 0 0 2px var(--gold), 0 0 20px color-mix(in srgb, var(--gold) 30%, transparent), var(--card-shadow);
+}
+.target-atk .card:not(.slot-empty), .target-bomb .card:not(.slot-empty),
+.target-sum .card:not(.slot-empty), .target-swap .card:not(.slot-empty){
+  box-shadow:0 0 0 2.5px var(--tlc,var(--blood)), var(--card-shadow);
+  animation:glow 1.15s ease-in-out infinite;
+}
+.target-bomb .card:not(.slot-empty){ --tlc:var(--blood) }
+.target-sum .card:not(.slot-empty){ --tlc:var(--gold) }
+.target-swap .card:not(.slot-empty){ --tlc:var(--moss) }
+.target-atk .card:not(.slot-empty){ --tlc:var(--blood) }
+.target-bomb .card:not(.slot-empty), .target-sum .card:not(.slot-empty),
+.target-swap .card:not(.slot-empty), .target-atk .card:not(.slot-empty){ cursor:pointer }
+@keyframes glow{
+  0%,100%{ box-shadow:0 0 0 2.5px var(--tlc,var(--blood)), var(--card-shadow) }
+  50%{ box-shadow:0 0 0 2.5px var(--tlc,var(--blood)), 0 0 16px 3px var(--tlc,var(--blood)) }
+}
+
+/* ============ CENTER (hint + log) ============ */
+.center{ max-width:600px; margin:0 auto }
+.hint{
+  text-align:center; font-weight:700; font-size:13px; color:var(--muted);
+  min-height:20px; margin:10px 0 6px;
+}
+#log{
+  height:132px; overflow-y:auto;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:8px 12px; font-size:12px; line-height:1.55; font-weight:600;
+}
+#log div{ margin:2px 0 }
+.lg-sys{ color:var(--muted) }
+.lg-dmg{ color:var(--blood) }
+.lg-crit{ color:var(--amber); font-weight:800 }
+.lg-faint{ color:var(--blood); font-weight:800 }
+.lg-good{ color:var(--moss) }
+.lg-item{ color:var(--gold) }
+.yours{ color:var(--gold); font-weight:700 }
+
+/* ============ ACTION BAR ============ */
+#actionBar{
+  display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap;
+  min-height:52px; margin:12px 0 4px;
+}
+#actionBar .actwho{ font-weight:800; font-size:15px }
+
+/* ============ SETUP SCREEN ============ */
+#setup{ padding-top:22px; text-align:center }
+#setup .sub-h{ font-size:21px; letter-spacing:.6px }
+#setup .sub{ color:var(--muted); font-weight:600; margin:10px 0 18px }
+.pick-grid{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:12px; max-width:720px; margin:0 auto; text-align:left;
+}
+.pick{ cursor:pointer; transition:transform .15s ease, box-shadow .15s ease }
+.pick:hover{ transform:translateY(-2px) }
+.pick.picked{
+  border-color:var(--gold);
+  box-shadow:0 0 0 2px var(--gold), var(--card-shadow);
+}
+.pick.picked::after{
+  content:'✓'; position:absolute; top:-7px; right:-7px;
+  width:20px; height:20px; border-radius:50%;
+  background:var(--moss); color:#fff; font-size:13px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+}
+.setup-actions{ display:flex; gap:12px; justify-content:center; margin:22px 0 8px; flex-wrap:wrap }
+.setup-actions .primary{ font-size:15px; padding:12px 26px }
+
+/* ============ MODALS ============ */
+#modalRoot:empty{ display:none }
+#modalRoot{
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center;
+  padding:16px; background:rgba(4,8,20,.6); backdrop-filter:blur(3px);
+}
+.backdrop{
+  display:flex; align-items:center; justify-content:center;
+  width:100%; max-width:100%; min-width:0;
+}
+.modal{
+  background:var(--panel); border:1px solid var(--line); border-radius:16px;
+  padding:20px; max-width:600px; width:100%; min-width:0; max-height:86vh; overflow-y:auto;
+  box-shadow:var(--shadow);
+}
+.modal h3{ font-size:19px; letter-spacing:.8px; margin-bottom:10px }
+.modal p{ font-size:13.5px; font-weight:600; line-height:1.5; margin:8px 0 }
+.modal .row{ display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap }
+.def-options{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0 4px }
+.def-options button{
+  display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 8px;
+}
+.def-options b{ font-size:13px }
+.def-options span{ font-size:10.5px; font-weight:600; color:var(--muted); line-height:1.3 }
+.replace-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-top:10px }
+.replace-opt{
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:12px 8px; font-weight:800;
+}
+.replace-opt .emoji{ font-size:28px }
+.end{ text-align:center }
+.end-emoji{ font-size:56px; margin:6px 0 4px }
+.end h3{ font-size:24px; letter-spacing:2px }
+.end .primary{ margin-top:12px; font-size:15px; padding:12px 26px }
+
+/* ============ RULES ============ */
+.rules ul{ margin:10px 0; padding-left:20px; font-size:12.5px; font-weight:600; line-height:1.55 }
+.rules li{ margin:5px 0 }
+.rules h4{ font-size:14px; letter-spacing:1px; margin:14px 0 8px }
+.tchart-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px }
+.tchart{ border-collapse:collapse; font-size:10.5px; font-weight:700; min-width:480px; width:100% }
+.tchart th,.tchart td{ border:1px solid var(--line); padding:4px 5px; text-align:center }
+.tchart th{ font-size:9.5px }
+.cell-strong{ background:color-mix(in srgb, var(--moss) 22%, transparent); color:var(--moss) }
+.cell-immune{ background:color-mix(in srgb, var(--blood) 18%, transparent); color:var(--blood) }
+.legend{ font-size:11.5px; color:var(--muted); margin-top:8px }
+
+/* ============ ANIMATIONS ============ */
+@keyframes shake{
+  10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(3px)}
+  30%,50%,70%{transform:translateX(-5px)} 40%,60%{transform:translateX(5px)}
+}
+.shake{ animation:shake .45s }
+@keyframes lungeP{ 40%{ transform:translateY(-14px) scale(1.04) } }
+@keyframes lungeE{ 40%{ transform:translateY(14px) scale(1.04) } }
+#playerActives .lunge, #playerBench .lunge{ animation:lungeP .3s ease }
+#enemyActives .lunge, #enemyBench .lunge{ animation:lungeE .3s ease }
+.dmg-num{
+  position:absolute; left:50%; top:26%; z-index:6; pointer-events:none;
+  font-size:18px; font-weight:800; color:#fff;
+  text-shadow:0 1px 0 #000, 0 0 8px rgba(0,0,0,.8);
+  animation:floatUp .85s ease-out forwards;
+}
+.dmg-num.crit{ color:var(--amber) }
+@keyframes floatUp{ from{ opacity:1; transform:translate(-50%,0) } to{ opacity:0; transform:translate(-50%,-42px) } }
+@keyframes typepulse{ 30%{ box-shadow:0 0 24px 7px var(--gold) } }
+.typepulse{ animation:typepulse 1.2s ease }
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important }
+}
+
+@media (max-width:520px){
+  .actives{ gap:6px }
+  .card{ padding:8px 5px; border-radius:11px }
+  .card .emoji{ font-size:27px }
+  .card .name{ font-size:10.5px }
+  .stats{ font-size:9px }
+  .bench-card{ width:96px }
+  .def-options{ grid-template-columns:1fr }
+  .logo{ font-size:16px }
+}
+</style>
+
+<header>
+  <div class="logo">⚔️ Creature Clash</div>
+  <div id="roundBox" class="round"></div>
+  <div id="itemsWrap" class="items" hidden>
+    <button id="btnBomb" class="item-btn bomb" title="Instantly eliminate any enemy creature">🧨 Bomb ×<span id="bombCount">1</span></button>
+    <button id="btnSummoner" class="item-btn sum" title="Grant a random new attribute to any active creature">✨ Summoner ×<span id="sumCount">0</span></button>
+  </div>
+  <div class="spacer"></div>
+  <div class="util">
+    <button id="btnSound" title="Toggle sound">🔇</button>
+    <button id="btnRules" title="Rules & attribute chart">📜 Rules</button>
+    <button id="btnNew" title="Draft a new roster">🔄 New Game</button>
+  </div>
+</header>
+
+<main id="setup"></main>
+
+<main id="battle" hidden>
+  <section class="field">
+    <div class="field-label enemy">☠️ ENEMY</div>
+    <div class="bench" id="enemyBench"></div>
+    <div class="actives" id="enemyActives"></div>
+  </section>
+  <section class="center">
+    <div id="hint" class="hint"></div>
+    <div id="log"></div>
+  </section>
+  <section class="field">
+    <div class="field-label player">🛡️ YOUR CREATURES</div>
+    <div class="actives" id="playerActives"></div>
+    <div class="bench" id="playerBench"></div>
+  </section>
+  <div id="actionBar"></div>
+</main>
+
+<div id="modalRoot"></div>
+
+<script>
+'use strict';
+/* ================= DATA ================= */
+const TYPE_LIST = ['Metal','Wood','Water','Fire','Earth','Shadow','Light','Normal'];
+const TYPE_INFO = {
+  Metal:  {c:'#aebfd4', fg:'#1a2233', icon:'⚙️'},
+  Wood:   {c:'#6fce7d', fg:'#122618', icon:'🌿'},
+  Water:  {c:'#5fb3f2', fg:'#0d2038', icon:'💧'},
+  Fire:   {c:'#f0816b', fg:'#33120c', icon:'🔥'},
+  Earth:  {c:'#d9b06f', fg:'#2b2010', icon:'🪨'},
+  Shadow: {c:'#8f6fd6', fg:'#1c1433', icon:'🌑'},
+  Light:  {c:'#f2d879', fg:'#332a0d', icon:'☀️'},
+  Normal: {c:'#c9c0ae', fg:'#2b2820', icon:'⭐'},
+};
+const STRONG = {
+  Metal:  ['Wood','Light'],
+  Wood:   ['Earth','Light'],
+  Water:  ['Fire','Light','Normal'],
+  Fire:   ['Metal','Light','Normal'],
+  Earth:  ['Water','Light'],
+  Shadow: ['Metal','Wood','Water','Fire','Earth','Light'],
+  Light:  ['Shadow'],
+  Normal: [],
+};
+const IMMUNE = { Normal:['Shadow','Light'] };
+function mult(attT, defT){
+  if ((IMMUNE[defT]||[]).includes(attT)) return 0;
+  return STRONG[attT].includes(defT) ? 1.5 : 1;
+}
+
+const SPECIES = [
+  {name:'Iron Golem',  emoji:'🤖', type:'Metal',  hp:340, atk:95,  def:95,  spd:45},
+  {name:'Blade Mantis',emoji:'⚔️', type:'Metal',  hp:255, atk:112, def:62,  spd:96},
+  {name:'Tin Knight',  emoji:'🛡️', type:'Metal',  hp:300, atk:84,  def:92,  spd:60},
+  {name:'Thorn Stag',  emoji:'🦌', type:'Wood',   hp:295, atk:96,  def:78,  spd:88},
+  {name:'Vine Wraith', emoji:'🌿', type:'Wood',   hp:265, atk:90,  def:68,  spd:102},
+  {name:'Elder Treant',emoji:'🌳', type:'Wood',   hp:365, atk:78,  def:102, spd:38},
+  {name:'Tide Serpent',emoji:'🌊', type:'Water',  hp:300, atk:94,  def:76,  spd:90},
+  {name:'Frost Crab',  emoji:'🦀', type:'Water',  hp:285, atk:84,  def:98,  spd:55},
+  {name:'Mist Eel',    emoji:'🐍', type:'Water',  hp:260, atk:100, def:60,  spd:104},
+  {name:'Ember Fox',   emoji:'🦊', type:'Fire',   hp:268, atk:106, def:58,  spd:106},
+  {name:'Magma Boar',  emoji:'🐗', type:'Fire',   hp:330, atk:96,  def:90,  spd:50},
+  {name:'Cinder Moth', emoji:'🦋', type:'Fire',   hp:245, atk:102, def:54,  spd:112},
+  {name:'Stone Tortoise',emoji:'🐢', type:'Earth', hp:370, atk:72,  def:112, spd:34},
+  {name:'Sand Wyrm',   emoji:'🪱', type:'Earth',  hp:290, atk:100, def:80,  spd:70},
+  {name:'Boulder Ram', emoji:'🐏', type:'Earth',  hp:315, atk:94,  def:86,  spd:62},
+  {name:'Night Stalker',emoji:'🦇', type:'Shadow',hp:258, atk:112, def:54,  spd:112},
+  {name:'Void Spider', emoji:'🕷️', type:'Shadow',hp:250, atk:106, def:60,  spd:100},
+  {name:'Umbra Wolf',  emoji:'🐺', type:'Shadow', hp:280, atk:100, def:68,  spd:96},
+  {name:'Solar Falcon',emoji:'🦅', type:'Light',  hp:260, atk:100, def:60,  spd:116},
+  {name:'Dawn Unicorn',emoji:'🦄', type:'Light',  hp:282, atk:90,  def:74,  spd:94},
+  {name:'Lumen Owl',   emoji:'🦉', type:'Light',  hp:270, atk:94,  def:68,  spd:100},
+];
+
+/* ================= UTIL ================= */
+const $ = s => document.querySelector(s);
+const rand = (a,b) => a + Math.random()*(b-a);
+const randInt = (a,b) => Math.floor(rand(a,b+1));
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const shuffle = arr => {
+  const a = [...arr];
+  for (let i=a.length-1; i>0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ================= CREATURES ================= */
+let nextId = 1;
+const byId = new Map();
+function makeCreature(sp, owner){
+  const j = x => Math.max(1, Math.round(x*rand(0.92,1.08)));
+  const hp = j(sp.hp);
+  const c = {
+    id: nextId++, owner, name: sp.name, emoji: sp.emoji, type: sp.type,
+    hp, maxHp: hp, atk: j(sp.atk), def: j(sp.def), spd: j(sp.spd), dodges: 5,
+  };
+  byId.set(c.id, c);
+  return c;
+}
+function revive(x){
+  const c = {
+    id: x.id, owner: x.owner, name: x.name, emoji: x.emoji, type: x.type,
+    hp: x.hp, maxHp: x.maxHp, atk: x.atk, def: x.def, spd: x.spd, dodges: x.dodges,
+  };
+  byId.set(c.id, c);
+  nextId = Math.max(nextId, c.id+1);
+  return c;
+}
+function buildRoster(owner){
+  const n = randInt(5,7);
+  return shuffle(SPECIES).slice(0,n).map(sp => makeCreature(sp, owner));
+}
+const sideOf = c => c.owner==='player' ? G.p : G.e;
+
+/* ================= STATE ================= */
+let G = null;
+function freshGame(){
+  byId.clear();
+  G = {
+    screen:'setup', round:1, over:false, targetMode:null, awaiting:null, busy:false,
+    sound:false, picked:[],
+    p:{ roster:buildRoster('player'), active:[], bench:[] },
+    e:{ roster:buildRoster('enemy'), active:[], bench:[] },
+    items:{ bomb:1, summoner:0 },
+    log:[],
+  };
+}
+function anyLiving(side){ return [...side.active, ...side.bench].some(c => c && c.hp>0); }
+
+/* ================= DAMAGE ================= */
+function expectedDamage(att, t){
+  const m = mult(att.type, t.type);
+  if (m===0) return 0;
+  const base = att.atk*0.7;
+  const red = t.def/(t.def+70);
+  return Math.max(1, Math.round(base*(1-red)*m));
+}
+function rollDamage(att, t){
+  let d = expectedDamage(att, t);
+  if (d===0) return {dmg:0, crit:false};
+  d *= rand(0.92,1.08);
+  const crit = Math.random()<0.1;
+  if (crit) d *= 1.5;
+  return {dmg:Math.max(1,Math.round(d)), crit};
+}
+
+/* ================= SFX ================= */
+const sfx = {
+  ctx:null, on:false,
+  ensure(){
+    try{
+      if (!this.ctx){
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+    }catch(e){}
+  },
+  tone(f0,f1,dur,type,vol){
+    if (!this.on) return;
+    this.ensure();
+    if (!this.ctx) return;
+    try{
+      const t = this.ctx.currentTime;
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type||'sine';
+      o.frequency.setValueAtTime(f0,t);
+      if (f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(1,f1), t+dur);
+      g.gain.setValueAtTime(vol||0.07, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t); o.stop(t+dur+0.02);
+    }catch(e){}
+  },
+  hit(crit){ this.tone(crit?520:240, crit?760:120, .12, 'square', .06); },
+  faint(){ this.tone(220,60,.5,'sawtooth',.06); },
+  boom(){ this.tone(90,30,.5,'sawtooth',.12); },
+  dodge(){ this.tone(700,1200,.15,'triangle',.05); },
+  win(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,f,.18,'triangle',.06), i*140)); },
+  lose(){ [392,330,262,196].forEach((f,i)=>setTimeout(()=>this.tone(f,f,.22,'sine',.06), i*160)); },
+};
+
+/* ================= LOG ================= */
+function log(msg, cls){
+  G.log.push({msg, cls:cls||'sys'});
+  if (G.log.length>220) G.log.shift();
+  renderLog();
+}
+function renderLog(){
+  const el = $('#log');
+  if (!el) return;
+  el.innerHTML = G.log.map(l => `<div class="lg-${l.cls}">${l.msg}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ================= MODALS ================= */
+function openModal(inner){
+  $('#modalRoot').innerHTML = `<div class="backdrop"><div class="modal">${inner}</div></div>`;
+  G.busy = true;
+}
+function closeModal(){
+  $('#modalRoot').innerHTML = '';
+  G.busy = false;
+  renderAll();
+}
+
+/* ================= RENDER ================= */
+function typeBadge(t){
+  const i = TYPE_INFO[t];
+  return `<span class="badge" style="background:${i.c};color:${i.fg}">${i.icon} ${t}</span>`;
+}
+function cardHTML(c, zone, side){
+  if (c===null) return `<div class="card slot-empty">—</div>`;
+  const facedown = side==='enemy' && zone==='bench';
+  if (facedown){
+    return `<div class="card bench-card facedown" data-id="${c.id}" data-side="${side}" data-zone="${zone}">
+      <div class="emoji">❓</div><div class="name">Unknown</div><div class="hpnum">hidden</div>
+    </div>`;
+  }
+  const pct = Math.max(0, Math.min(100, Math.round(c.hp/c.maxHp*100)));
+  const barCls = pct>50 ? 'g' : pct>25 ? 'a' : 'r';
+  const mini = zone==='bench';
+  return `<div class="card ${mini?'bench-card':''}" data-id="${c.id}" data-side="${side}" data-zone="${zone}">
+    <div class="emoji">${c.emoji}</div>
+    <div class="name">${c.name}</div>
+    ${typeBadge(c.type)}
+    <div class="hpbar"><i class="${barCls}" style="width:${pct}%"></i></div>
+    <div class="hpnum">${c.hp}/${c.maxHp}</div>
+    ${mini ? '' : `<div class="stats">⚔${c.atk} 🛡${c.def} ⚡${c.spd}</div><div class="dodges">💨 ${c.dodges}</div>`}
+  </div>`;
+}
+function renderField(){
+  $('#enemyBench').innerHTML = G.e.bench.map(c => cardHTML(c,'bench','enemy')).join('');
+  $('#enemyActives').innerHTML = G.e.active.map(c => cardHTML(c,'active','enemy')).join('');
+  $('#playerActives').innerHTML = G.p.active.map(c => cardHTML(c,'active','player')).join('');
+  $('#playerBench').innerHTML = G.p.bench.map(c => cardHTML(c,'bench','player')).join('');
+
+  const m = G.targetMode;
+  $('#enemyActives').classList.toggle('target-atk', m==='attack');
+  $('#playerBench').classList.toggle('target-swap', m==='swap');
+  $('#enemyActives').classList.toggle('target-bomb', m==='bomb');
+  $('#enemyBench').classList.toggle('target-bomb', m==='bomb');
+  $('#enemyActives').classList.toggle('target-sum', m==='summoner');
+  $('#playerActives').classList.toggle('target-sum', m==='summoner');
+
+  if (G.awaiting && G.awaiting.c){
+    const el = document.querySelector(`.card[data-id="${G.awaiting.c.id}"]`);
+    if (el) el.classList.add('current');
+  }
+}
+function renderHeader(){
+  $('#bombCount').textContent = G.items.bomb;
+  $('#sumCount').textContent = G.items.summoner;
+  $('#itemsWrap').hidden = G.screen!=='battle';
+  $('#roundBox').textContent = G.screen==='battle' ? `Round ${G.round}` : '';
+  $('#btnBomb').disabled = !(G.screen==='battle' && !G.over && !G.busy && G.items.bomb>0 && anyLiving(G.e));
+  $('#btnSummoner').disabled = !(G.screen==='battle' && !G.over && !G.busy && G.items.summoner>0
+    && [...G.p.active, ...G.e.active].some(c => c && c.hp>0));
+  $('#btnSound').textContent = G.sound ? '🔊' : '🔇';
+}
+function renderHint(){
+  const h = $('#hint');
+  if (G.over){ h.textContent = 'Battle over.'; return; }
+  if (G.awaiting){
+    if (!G.targetMode) h.textContent = `${G.awaiting.c.name} awaits your command — Attack, Swap, or Self-Destruct.`;
+    else if (G.targetMode==='attack') h.textContent = `Choose a target for ${G.awaiting.c.name}.`;
+    else if (G.targetMode==='swap') h.textContent = 'Choose a bench creature to swap in.';
+  } else if (G.targetMode==='bomb'){
+    h.textContent = '🧨 Choose any enemy creature — active or benched — to destroy.';
+  } else if (G.targetMode==='summoner'){
+    h.textContent = '✨ Choose an active creature (yours or the enemy’s) to receive a new attribute.';
+  } else {
+    h.textContent = `Round ${G.round} — faster creatures act first.`;
+  }
+}
+function renderActions(){
+  const el = $('#actionBar');
+  if (!G.awaiting || G.over || G.busy){ el.innerHTML = ''; return; }
+  const c = G.awaiting.c;
+  const hasBench = G.p.bench.some(b => b && b.hp>0);
+  el.innerHTML = `
+    <span class="actwho">${c.emoji} ${c.name}</span>
+    <button data-act="attack" class="primary">⚔️ Attack</button>
+    <button data-act="swap" ${hasBench ? '' : 'disabled'}>🔄 Swap</button>
+    <button data-act="boom" class="danger">💥 Self-Destruct<span class="sub">→ forge ✨ Summoner</span></button>`;
+}
+function renderAll(){
+  renderHeader();
+  renderField();
+  renderHint();
+  renderActions();
+}
+
+/* ================= SETUP ================= */
+function renderSetup(){
+  $('#battle').hidden = true;
+  $('#setup').hidden = false;
+  $('#setup').innerHTML = `
+    <h2 class="sub-h">Draft your battle party</h2>
+    <p class="sub">The enemy commands <b>${G.e.roster.length}</b> creatures. Choose exactly <b>3</b> of your ${G.p.roster.length}.</p>
+    <div class="pick-grid">
+      ${G.p.roster.map(c => `
+      <div class="card pick ${G.picked.includes(c.id)?'picked':''}" data-id="${c.id}" data-zone="pick">
+        <div class="emoji">${c.emoji}</div>
+        <div class="name">${c.name}</div>
+        ${typeBadge(c.type)}
+        <div class="hpbar"><i class="g" style="width:100%"></i></div>
+        <div class="hpnum">❤️ ${c.maxHp}</div>
+        <div class="stats">⚔${c.atk} 🛡${c.def} ⚡${c.spd}</div>
+      </div>`).join('')}
+    </div>
+    <div class="setup-actions">
+      <button id="btnRandom">🎲 Random team</button>
+      <button id="btnStart" class="primary" ${G.picked.length===3 ? '' : 'disabled'}>⚔️ To Battle!</button>
+    </div>
+    <p class="sub">Normal creatures don't exist in the wild — only a ✨ Summoner can create one.</p>`;
+  renderHeader();
+}
+function togglePick(id){
+  const i = G.picked.indexOf(id);
+  if (i>=0) G.picked.splice(i,1);
+  else if (G.picked.length<3) G.picked.push(id);
+  renderSetup();
+}
+function startBattle(){
+  if (G.picked.length!==3) return;
+  G.p.active = G.picked.map(id => byId.get(id));
+  G.p.bench = G.p.roster.filter(c => !G.p.active.includes(c));
+  G.e.active = shuffle(G.e.roster).slice(0,3);
+  G.e.bench = G.e.roster.filter(c => !G.e.active.includes(c));
+  G.screen = 'battle';
+  $('#setup').hidden = true;
+  $('#battle').hidden = false;
+  sfx.ensure();
+  log('⚔️ The battle begins! Three enemy creatures stand before you — the rest wait on their bench.');
+  log('💡 Tip: self-destruct (💥) a creature to forge a ✨ Summoner.');
+  log('💡 Tip: your 🧨 Bomb can erase any enemy creature — even a benched one.');
+  renderAll();
+  runBattle();
+}
+
+/* ================= BATTLE LOOP ================= */
+let battleToken = 0;
+async function runBattle(){
+  const tok = ++battleToken;
+  G.over = false;
+  while (G.screen==='battle' && !G.over && tok===battleToken){
+    const q = [...G.p.active, ...G.e.active]
+      .filter(c => c && c.hp>0)
+      .sort((a,b) => b.spd-a.spd || (Math.random()<0.5 ? -1 : 1));
+    for (const c of q){
+      if (G.over || tok!==battleToken || G.screen!=='battle') return;
+      if (c.hp<=0) continue;
+      const side = sideOf(c);
+      if (!side.active.includes(c)) continue;
+      if (!anyLiving(G.e) || !anyLiving(G.p)) return endBattle();
+      if (c.owner==='player') await playerAct(c);
+      else await enemyAct(c);
+      await sleep(280);
+    }
+    G.round++;
+    renderHeader();
+    renderHint();
+  }
+}
+function settlePending(){
+  if (G.awaiting){ const r = G.awaiting.res; G.awaiting = null; r(); }
+  G.targetMode = null;
+}
+function playerAct(c){
+  return new Promise(res => {
+    G.awaiting = {c, res};
+    G.targetMode = null;
+    renderAll();
+  });
+}
+function settle(){
+  const a = G.awaiting;
+  G.awaiting = null;
+  G.targetMode = null;
+  if (a) a.res();
+  renderAll();
+}
+async function enemyAct(c){
+  $('#hint').textContent = `☠️ ${c.name} is choosing its move…`;
+  await sleep(650);
+  if (c.hp<=0 || !G.e.active.includes(c)) return;
+  const targets = G.p.active.filter(t => t && t.hp>0);
+  if (!targets.length) return;
+  let best = null, bestScore = -1;
+  for (const t of targets){
+    const score = mult(c.type, t.type)*6 + (1 - t.hp/t.maxHp)*2.5 + Math.random()*1.8;
+    if (score > bestScore){ bestScore = score; best = t; }
+  }
+  await doAttack(c, best);
+}
+
+/* ================= COMBAT ================= */
+function aiReaction(t, est){
+  if (est >= t.hp){
+    if (t.dodges>0 && Math.random()<0.45) return 'dodge';
+    return Math.random()<0.65 ? 'defend' : 'take';
+  }
+  if (t.dodges>0 && Math.random()<0.13) return 'dodge';
+  if (Math.random()<0.2) return 'defend';
+  return 'take';
+}
+async function doAttack(att, t){
+  log(`⚔️ ${att.emoji} <b>${att.name}</b> attacks ${t.emoji} <b>${t.name}</b>${t.owner==='player' ? ' <span class="yours">(yours)</span>' : ''}!`);
+  const m = mult(att.type, t.type);
+  if (m===0){
+    lunge(att);
+    await sleep(260);
+    log(`☁️ No effect — <b>${t.name}</b> is immune to ${att.type} attacks!`);
+    renderField();
+    await sleep(320);
+    return;
+  }
+  const est = expectedDamage(att, t);
+  let reaction = 'take';
+  if (t.owner==='enemy') reaction = aiReaction(t, est);
+  else reaction = await askDefense(att, t, est);
+
+  lunge(att);
+  await sleep(260);
+  if (att.hp<=0 || !sideOf(att).active.includes(att)) return; // destroyed mid-strike
+
+  if (reaction==='dodge'){
+    t.dodges = Math.max(0, t.dodges-1);
+    const ok = Math.random()<0.35;
+    if (ok){
+      sfx.dodge();
+      log(`💨 <b>${t.name}</b> dodges — the attack misses! (${t.dodges} dodge${t.dodges===1?'':'s'} left)`);
+      renderField();
+      await sleep(320);
+      return;
+    }
+    log(`💨 <b>${t.name}</b> tries to dodge… fails! (${t.dodges} dodge${t.dodges===1?'':'s'} left)`);
+  }
+  let {dmg, crit} = rollDamage(att, t);
+  if (reaction==='defend'){
+    const before = t.def;
+    t.def = Math.max(1, Math.round(t.def*0.85));
+    dmg = Math.max(1, Math.round(dmg*0.5));
+    log(`🛡️ <b>${t.name}</b> defends — damage halved, but Defense drops ${before}→${t.def}.`);
+  }
+  t.hp = Math.max(0, t.hp-dmg);
+  hitAnim(t, dmg, crit);
+  sfx.hit(crit);
+  if (crit) log(`💥 Critical hit — <b>${t.name}</b> takes ${dmg}!`, 'crit');
+  else log(`${t.owner==='player' ? '😖' : '🎯'} <b>${t.name}</b> takes ${dmg} damage.`, 'dmg');
+  if (m===1.5) log(`✨ ${att.type} is strong against ${t.type} (+50%).`, 'good');
+  renderField();
+  await sleep(430);
+  if (t.hp<=0) await faint(t);
+}
+function askDefense(att, t, est){
+  return new Promise(res => {
+    openModal(`
+      <div class="modal-in">
+        <h3>⚠️ Incoming attack!</h3>
+        <p>${att.emoji} <b>${att.name}</b> (${att.type}) attacks your ${t.emoji} <b>${t.name}</b> for <b>≈${est}</b> damage.</p>
+        <div class="def-options">
+          <button onclick="defChoice('take')"><b>🫳 Take the hit</b><span>Full damage</span></button>
+          <button onclick="defChoice('defend')"><b>🛡️ Defend</b><span>Half damage · Def −15%</span></button>
+          <button onclick="defChoice('dodge')" ${t.dodges>0 ? '' : 'disabled'}><b>💨 Dodge</b><span>35% chance · ${t.dodges} left</span></button>
+        </div>
+      </div>`);
+    G._defRes = res;
+  });
+}
+function defChoice(k){
+  const r = G._defRes;
+  G._defRes = null;
+  closeModal();
+  r(k);
+}
+async function faint(t){
+  t.hp = 0;
+  log(`💀 <b>${t.name}</b> has fallen!`, 'faint');
+  sfx.faint();
+  const side = sideOf(t);
+  const idx = side.active.indexOf(t);
+  if (idx<0){
+    side.bench = side.bench.filter(b => b!==t);
+    renderField();
+    if (!anyLiving(G.e) || !anyLiving(G.p)) endBattle();
+    return;
+  }
+  side.active[idx] = null;
+  renderField();
+  await sleep(500);
+  const sub = side.bench.find(b => b && b.hp>0);
+  if (sub){
+    if (t.owner==='player'){
+      const chosen = await askReplace();
+      if (chosen){
+        side.active[idx] = chosen;
+        side.bench = side.bench.filter(b => b!==chosen);
+        log(`🔄 You send out <b>${chosen.name}</b>!`, 'good');
+      }
+    } else {
+      side.active[idx] = sub;
+      side.bench = side.bench.filter(b => b!==sub);
+      log(`☠️ The enemy sends out <b>${sub.name}</b>!`);
+    }
+    renderField();
+    await sleep(350);
+  } else {
+    log(`${t.owner==='player' ? '😱 You have no one left to send out in that slot!' : 'The enemy has nothing left to send in that slot!'}`);
+  }
+  if (!anyLiving(G.e) || !anyLiving(G.p)) endBattle();
+}
+function askReplace(){
+  const living = G.p.bench.filter(b => b && b.hp>0);
+  return new Promise(res => {
+    openModal(`
+      <div class="modal-in">
+        <h3>🔄 Choose a replacement</h3>
+        <div class="replace-grid">
+          ${living.map(b => `
+          <button class="replace-opt" onclick="replaceChoice(${b.id})">
+            <span class="emoji">${b.emoji}</span>
+            <span>${b.name}</span>
+            ${typeBadge(b.type)}
+            <span class="hpnum">❤️ ${b.hp}/${b.maxHp}</span>
+          </button>`).join('')}
+        </div>
+      </div>`);
+    G._repRes = res;
+  });
+}
+function replaceChoice(id){
+  const r = G._repRes;
+  G._repRes = null;
+  closeModal();
+  r(byId.get(id));
+}
+
+/* ================= ACTIONS ================= */
+function setTargetMode(m){
+  G.targetMode = (G.targetMode===m) ? null : m;
+  renderAll();
+}
+async function onAttackTarget(t){
+  const c = G.awaiting && G.awaiting.c;
+  if (!c) return;
+  G.targetMode = null;
+  await doAttack(c, t);
+  settle();
+}
+function doSwap(b){
+  const a = G.awaiting;
+  if (!a) return;
+  const c = a.c;
+  G.targetMode = null;
+  const ai = G.p.active.indexOf(c);
+  const bi = G.p.bench.indexOf(b);
+  G.p.active[ai] = b;
+  G.p.bench[bi] = c;
+  log(`🔄 <b>${c.name}</b> retreats; <b>${b.name}</b> takes the field!`);
+  settle();
+}
+async function selfDestructFlow(c){
+  openModal(`
+    <div class="modal-in">
+      <h3>💥 Self-destruct?</h3>
+      <p>Sacrifice <b>${c.emoji} ${c.name}</b> to forge a <b>✨ Summoner</b>.</p>
+      <div class="row">
+        <button class="danger" onclick="selfConfirm(true)">💥 Do it</button>
+        <button onclick="selfConfirm(false)">Cancel</button>
+      </div>
+    </div>`);
+  const ok = await new Promise(res => { G._selfRes = res; });
+  closeModal();
+  if (!ok){ renderAll(); return; }
+  G.items.summoner++;
+  log(`💥 <b>${c.name}</b> self-destructs! You forge a ✨ Summoner!`, 'item');
+  sfx.boom();
+  c.hp = 0;
+  const side = G.p;
+  const idx = side.active.indexOf(c);
+  side.active[idx] = null;
+  renderField();
+  await sleep(450);
+  const sub = side.bench.find(b => b && b.hp>0);
+  if (sub){
+    const chosen = await askReplace();
+    if (chosen){
+      side.active[idx] = chosen;
+      side.bench = side.bench.filter(b => b!==chosen);
+      log(`🔄 You send out <b>${chosen.name}</b>!`, 'good');
+    }
+  }
+  renderAll();
+  if (!anyLiving(G.e) || !anyLiving(G.p)) return endBattle();
+  settle();
+}
+function selfConfirm(v){
+  const r = G._selfRes;
+  G._selfRes = null;
+  r(v);
+}
+async function useBomb(t){
+  G.items.bomb--;
+  setTargetMode(null);
+  log(`🧨 <b>BOOM!</b> You detonate the Bomb on <b>${t.name}</b> — instantly eliminated!`, 'item');
+  sfx.boom();
+  hitAnim(t, 999, false);
+  await sleep(250);
+  await faint(t);
+  renderAll();
+}
+function useSummoner(t){
+  G.items.summoner--;
+  setTargetMode(null);
+  const keep = Math.random()<0.4;
+  if (keep){
+    log(`✨ The Summoner's power wavers… <b>${t.name}</b> keeps its ${t.type} attribute! (40% chance)`, 'item');
+  } else {
+    const old = t.type;
+    const roll = Math.random()<0.1 ? 'Normal' : pick(TYPE_LIST.filter(x => x!=='Normal'));
+    t.type = roll;
+    if (roll===old){
+      log(`✨ The Summoner whirls… the new attribute is also ${roll} — no change!`, 'item');
+    } else {
+      log(`✨ Summoner! <b>${t.name}</b>'s attribute becomes <b>${TYPE_INFO[roll].icon} ${roll}</b>!`, 'item');
+      if (roll==='Normal') log(`🌟 The mythical NORMAL attribute! Immune to Shadow & Light, weak to Fire & Water.`, 'good');
+    }
+  }
+  pulseType(t);
+  renderAll();
+}
+
+/* ================= ANIM HELPERS ================= */
+function hitAnim(c, dmg, crit){
+  const el = document.querySelector(`.card[data-id="${c.id}"]`);
+  if (!el) return;
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+  const n = document.createElement('span');
+  n.className = 'dmg-num' + (crit ? ' crit' : '');
+  n.textContent = dmg>990 ? '💥' : '-'+dmg;
+  el.appendChild(n);
+  setTimeout(() => n.remove(), 850);
+}
+function lunge(c){
+  const el = document.querySelector(`.card[data-id="${c.id}"]`);
+  if (el){
+    el.classList.remove('lunge');
+    void el.offsetWidth;
+    el.classList.add('lunge');
+  }
+}
+function pulseType(c){
+  const el = document.querySelector(`.card[data-id="${c.id}"]`);
+  if (el){
+    el.classList.add('typepulse');
+    setTimeout(() => el.classList.remove('typepulse'), 1200);
+  }
+}
+
+/* ================= END ================= */
+function endBattle(){
+  if (G.over) return;
+  G.over = true;
+  settlePending();
+  const win = !anyLiving(G.e);
+  renderAll();
+  if (win) sfx.win(); else sfx.lose();
+  setTimeout(() => {
+    openModal(`
+      <div class="modal-in end">
+        <div class="end-emoji">${win ? '🏆' : '💀'}</div>
+        <h3>${win ? 'Victory!' : 'Defeat…'}</h3>
+        <p>${win ? 'Every enemy creature has been eliminated.' : 'Your creatures have all fallen.'}<br>
+        The battle lasted ${G.round} round${G.round===1 ? '' : 's'}.</p>
+        <button class="primary" onclick="closeModal();newGame()">⚔️ Battle Again</button>
+      </div>`);
+  }, 600);
+}
+
+/* ================= RULES ================= */
+function openRules(){
+  const hdr = TYPE_LIST.map(t => {
+    const i = TYPE_INFO[t];
+    return `<th style="background:${i.c};color:${i.fg}" title="${t}">${i.icon}</th>`;
+  }).join('');
+  const rows = TYPE_LIST.map(att => {
+    const cells = TYPE_LIST.map(def => {
+      const v = mult(att, def);
+      const cls = v===1.5 ? 'cell-strong' : v===0 ? 'cell-immune' : '';
+      const txt = v===1.5 ? '1.5' : v===0 ? '0' : '1';
+      return `<td class="${cls}">${txt}</td>`;
+    }).join('');
+    const i = TYPE_INFO[att];
+    return `<tr><th style="background:${i.c};color:${i.fg}">${i.icon} ${att}</th>${cells}</tr>`;
+  }).join('');
+  openModal(`
+    <div class="modal-in rules">
+      <h3>📜 Rules of the Arena</h3>
+      <ul>
+        <li>You and the enemy are each dealt <b>5–7 creatures</b>. You field 3; when one falls, you send in another from the bench.</li>
+        <li>Every creature has an <b>attribute</b> and Attack / Defense / Speed / HP. Each round, all active creatures act in Speed order.</li>
+        <li><b>Shadow</b> is strong against everything except Normal; <b>Light</b> strikes Shadow hard but is beaten by Metal, Wood, Water, Fire and Earth.</li>
+        <li><b>Normal</b> is immune to Shadow &amp; Light but weak to Fire &amp; Water. Normal creatures don't exist in the wild — only a Summoner can create one.</li>
+        <li><b>Defend:</b> when attacked, a creature may defend — damage is halved, but its Defense drops 15% permanently.</li>
+        <li><b>Dodge:</b> each creature may attempt up to 5 dodges per battle; each attempt has a 35% chance to evade entirely.</li>
+        <li><b>🧨 Bomb:</b> use it once, any time, on any enemy creature (even benched) — instant elimination.</li>
+        <li><b>✨ Summoner:</b> self-destruct (💥) one of your creatures to forge one. Use it on any active creature — yours or the enemy's: 40% it keeps its attribute, 60% it's replaced by a random one (10% Normal).</li>
+        <li><b>Swap:</b> spend a creature's action to trade places with a benched ally.</li>
+        <li>Win by eliminating every enemy creature.</li>
+      </ul>
+      <h4>Attribute chart — attacker ↓ vs defender →</h4>
+      <div class="tchart-wrap">
+        <table class="tchart">
+          <thead><tr><th></th>${hdr}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="legend"><b>1.5</b> = strong (+50%) · <b>1</b> = normal · <b>0</b> = immune</p>
+      <div class="row"><button onclick="closeModal()">Close</button></div>
+    </div>`);
+}
+
+/* ================= UI BINDING ================= */
+function bindUI(){
+  $('#btnSound').onclick = () => {
+    G.sound = !G.sound;
+    if (G.sound) sfx.ensure();
+    renderHeader();
+  };
+  $('#btnRules').onclick = openRules;
+  $('#btnNew').onclick = () => {
+    if (G.screen==='battle' && !G.over){
+      openModal(`
+        <div class="modal-in">
+          <h3>🔄 Start over?</h3>
+          <p>Abandon the current battle and draft new creatures?</p>
+          <div class="row">
+            <button class="danger" onclick="closeModal();newGame()">Yes, abandon</button>
+            <button onclick="closeModal()">Keep fighting</button>
+          </div>
+        </div>`);
+    } else {
+      newGame();
+    }
+  };
+  $('#btnBomb').onclick = () => {
+    if (!$('#btnBomb').disabled) setTargetMode('bomb');
+  };
+  $('#btnSummoner').onclick = () => {
+    if (!$('#btnSummoner').disabled) setTargetMode('summoner');
+  };
+  $('#actionBar').addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]');
+    if (!b || b.disabled) return;
+    const c = G.awaiting && G.awaiting.c;
+    if (!c) return;
+    if (b.dataset.act==='attack') setTargetMode('attack');
+    else if (b.dataset.act==='swap') setTargetMode('swap');
+    else if (b.dataset.act==='boom') selfDestructFlow(c);
+  });
+  $('#setup').addEventListener('click', e => {
+    const p = e.target.closest('.pick');
+    if (p){ togglePick(+p.dataset.id); return; }
+    if (e.target.closest('#btnRandom')){
+      G.picked = shuffle(G.p.roster).slice(0,3).map(c => c.id);
+      renderSetup();
+    }
+    if (e.target.closest('#btnStart')){
+      if (G.picked.length===3) startBattle();
+    }
+  });
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.card[data-id]');
+    if (!el) return;
+    const c = byId.get(+el.dataset.id);
+    if (!c) return;
+    if (G.screen!=='battle' || G.over || G.busy || c.hp<=0) return;
+    const side = el.dataset.side, zone = el.dataset.zone;
+    switch (G.targetMode){
+      case 'attack':   if (side==='enemy' && zone==='active') onAttackTarget(c); break;
+      case 'swap':     if (side==='player' && zone==='bench') doSwap(c); break;
+      case 'bomb':     if (side==='enemy') useBomb(c); break;
+      case 'summoner': if (zone==='active') useSummoner(c); break;
+    }
+  });
+  document.addEventListener('click', () => sfx.ensure(), {once:true});
+}
+
+/* ================= NEW GAME / HOT RELOAD ================= */
+function newGame(){
+  battleToken++;
+  settlePending();
+  closeModal();
+  freshGame();
+  renderSetup();
+}
+
+function snapshotState(){
+  if (!G) return {};
+  const ser = c => c ? {id:c.id, owner:c.owner, name:c.name, emoji:c.emoji, type:c.type,
+    hp:c.hp, maxHp:c.maxHp, atk:c.atk, def:c.def, spd:c.spd, dodges:c.dodges} : null;
+  return {
+    screen:G.screen, round:G.round, over:G.over, picked:[...G.picked],
+    sound:G.sound, items:{...G.items},
+    p:{ roster:G.p.roster.map(ser), active:G.p.active.map(ser), bench:G.p.bench.map(ser) },
+    e:{ roster:G.e.roster.map(ser), active:G.e.active.map(ser), bench:G.e.bench.map(ser) },
+    log:G.log.slice(-40),
+  };
+}
+function boot(saved){
+  if (saved && saved.p && saved.e){
+    const reb = list => (list||[]).map(x => x ? revive(x) : null);
+    G = {
+      screen:saved.screen, round:saved.round||1, over:!!saved.over,
+      targetMode:null, awaiting:null, busy:false,
+      sound:!!saved.sound, picked:[...(saved.picked||[])],
+      p:{ roster:reb(saved.p.roster), active:reb(saved.p.active), bench:reb(saved.p.bench) },
+      e:{ roster:reb(saved.e.roster), active:reb(saved.e.active), bench:reb(saved.e.bench) },
+      items:{ bomb:1, summoner:0, ...(saved.items||{}) },
+      log:saved.log||[],
+    };
+    if (G.screen==='battle' && !G.over){
+      $('#setup').hidden = true;
+      $('#battle').hidden = false;
+      renderAll();
+      renderLog();
+      runBattle();
+      return;
+    }
+  }
+  freshGame();
+  renderSetup();
+}
+
+/* ================= INIT ================= */
+const HOT = window.claude && window.claude.hot;
+if (HOT && HOT.snapshot) HOT.snapshot(snapshotState);
+const start = data => { bindUI(); boot(data); };
+if (HOT && HOT.ready) HOT.ready(start);
+else start(HOT ? HOT.data : {});
+</script>
