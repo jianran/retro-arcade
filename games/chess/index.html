@@ -138,6 +138,7 @@ aside{
         <button data-mode="easy">🤖 Easy</button>
         <button data-mode="med" class="on">🤖 Med</button>
         <button data-mode="hard">🤖 Hard</button>
+        <button data-mode="master">🤖 Master</button>
       </div>
       <button class="btn" id="btnNew" title="New game (N)">↺ New</button>
       <button class="btn" id="btnUndo" title="Undo (U)">↩ Undo</button>
@@ -519,13 +520,19 @@ function evalState(st){
 
 /* ---- search ---- */
 let nodes = 0, deadline = 0, abort = false;
-function orderMoves(moves, st){
+const killers = [];            // [ply] -> [killer1, killer2] quiet moves that caused cutoffs
+function orderMoves(moves, st, ply){
   const b = st.board;
+  const ks = killers[ply];
   for (const m of moves){
     let s = 0;
     const cap = m.epCapt ? (st.turn === W ? "p" : "P") : b[m.to];
     if (cap) s += 10 * VAL[cap.toLowerCase()] - VAL[(b[m.from] || "p").toLowerCase()];
     if (m.promo) s += 900;
+    if (ks && !cap && !m.promo){
+      if (ks[0] && ks[0].from === m.from && ks[0].to === m.to && ks[0].promo === m.promo) s += 60;
+      else if (ks[1] && ks[1].from === m.from && ks[1].to === m.to && ks[1].promo === m.promo) s += 50;
+    }
     m._s = s;
   }
   moves.sort((a, b) => b._s - a._s);
@@ -539,7 +546,7 @@ function quiesce(st, alpha, beta, ply){
   if (stand > alpha) alpha = stand;
   if (ply >= 8) return alpha;
   const caps = pseudoMoves(st).filter(m => m.epCapt || m.promo || st.board[m.to]);
-  orderMoves(caps, st);
+  orderMoves(caps, st, 0);
   for (const m of caps){
     make(st, m);
     const mover = other(st.turn);
@@ -561,7 +568,7 @@ function negamax(st, depth, alpha, beta, ply){
   const moves = legalMoves(st);
   if (moves.length === 0) return inCheck(st) ? -(MATE - ply) : 0;
   if (depth <= 0) return quiesce(st, alpha, beta, ply);
-  orderMoves(moves, st);
+  orderMoves(moves, st, ply);
   let best = -Infinity;
   for (const m of moves){
     make(st, m);
@@ -570,40 +577,67 @@ function negamax(st, depth, alpha, beta, ply){
     if (abort) return 0;
     if (s > best) best = s;
     if (best > alpha) alpha = best;
-    if (alpha >= beta) break;
+    if (alpha >= beta){
+      if (!m.captured && !m.promo){
+        const k = killers[ply] || (killers[ply] = [null, null]);
+        if (!(k[0] && k[0].from === m.from && k[0].to === m.to)){
+          k[1] = k[0];
+          k[0] = {from: m.from, to: m.to, promo: m.promo};
+        }
+      }
+      break;
+    }
   }
   return best;
 }
-/* cpuMove(st, ms, maxDepth) -> best move (or null). Mutates st via make/unmake
-   but always restores it. */
-function cpuMove(st, ms, maxDepth){
+/* cpuMove(st, ms, maxDepth, rand) -> best move (or null). Mutates st via make/unmake
+   but always restores it. rand = centipawn window for variety among near-equal moves. */
+function cpuMove(st, ms, maxDepth, rand){
   const t0 = performance.now();
   deadline = t0 + ms;
+  killers.length = 0;
   let bestMove = null, bestScore = -Infinity;
-  const rootScores = [];
+  let rootScores = [];       // per-move scores from the LAST COMPLETED depth
   for (let d = 1; d <= maxDepth; d++){
     abort = false;
     nodes = 0;
     let a = -Infinity, bestD = null;
+    const scores = [];
     const moves = legalMoves(st);
     if (moves.length === 0) return null;
-    orderMoves(moves, st);
+    orderMoves(moves, st, 0);
     for (const m of moves){
       make(st, m);
-      const s = -negamax(st, d - 1, Infinity, -a, 1);
+      const s = -negamax(st, d - 1, -Infinity, -a, 1);
       unmake(st, m);
       if (abort) break;
-      if (d === 1) rootScores.push({m, s});
+      scores.push({m, s});
       if (s > a){ a = s; bestD = m; }
     }
     if (abort) break;
+    rootScores = scores;
     bestMove = bestD;
     bestScore = a;
     if (bestScore >= MATE - 200) break;
   }
-  if (bestScore < MATE - 500 && rootScores.length){
-    const cands = rootScores.filter(x => x.s >= bestScore - 20);
-    if (cands.length) return cands[(Math.random() * cands.length) | 0].m;
+  const w = rand || 0;
+  if (w > 0 && bestScore < MATE - 500 && rootScores.length){
+    const cands = rootScores.filter(x => x.s >= bestScore - w);
+    if (cands.length > 1){
+      // Variety pick: root scores carry alpha-beta bounds (a fail-low move can
+      // sit right at the window edge), so re-check each candidate with a full
+      // window at shallow depth and take the real best among them.
+      deadline = performance.now() + 600;
+      abort = false;
+      let bestCand = cands[0].m, bestCS = -Infinity;
+      for (const c of cands){
+        make(st, c.m);
+        const s = -negamax(st, 1, -Infinity, Infinity, 1);
+        unmake(st, c.m);
+        if (!abort && s > bestCS){ bestCS = s; bestCand = c.m; }
+      }
+      return bestCand;
+    }
   }
   return bestMove;
 }
@@ -620,7 +654,12 @@ const capB = document.getElementById("capB");
 const overlay = document.getElementById("overlay");
 const promoBox = document.getElementById("promo");
 const pbtns = document.getElementById("pbtns");
-const DIFF = {easy:{ms:250, depth:1, minThink:700}, med:{ms:700, depth:2, minThink:1100}, hard:{ms:1800, depth:3, minThink:1600}};
+const DIFF = {
+  easy:   {ms:250,  depth:1, minThink:700,  rand:40},
+  med:    {ms:700,  depth:2, minThink:1100, rand:20},
+  hard:   {ms:1800, depth:3, minThink:1600, rand:10},
+  master: {ms:3000, depth:4, minThink:2000, rand:0},   // rand 0 = no variety, always best move
+};
 
 let state = newGame();
 let mode = "med";          // 2p | easy | med | hard
@@ -850,7 +889,7 @@ function scheduleThink(){
   setTimeout(() => {
     if (token !== thinkToken || ended) return;
     let m = null;
-    try { m = cpuMove(cloneState(state), lvl.ms, lvl.depth); }
+    try { m = cpuMove(cloneState(state), lvl.ms, lvl.depth, lvl.rand); }
     catch(e){ console.error("CPU move failed:", e); }
     // keep the "thinking…" state visible for a beat so the reply is readable
     const wait = Math.max(0, lvl.minThink - (performance.now() - t0));

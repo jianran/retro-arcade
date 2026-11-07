@@ -1,0 +1,2953 @@
+<title>DOOM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;700;800&display=swap">
+<style>
+  /* DOOM — neon-arcade arena. Dark-first, single-theme by design. */
+  :root{
+    color-scheme: dark;
+    --bg: #070b16;
+    --bg-deep: #0a0f1e;
+    --panel: rgba(16, 22, 41, 0.93);
+    --card: #131a2f;
+    --line: #2a3554;
+    --line-soft: #1d2540;
+    --fg: #e9edf8;
+    --fg-dim: #8f9ab8;
+    --accent: #ffd76a;
+    --good: #5ad06a;
+    --warn: #ffc34d;
+    --bad: #ff5a5a;
+    --r-common: #9aa4b2;
+    --r-uncommon: #4ade80;
+    --r-rare: #5ea2ff;
+    --r-epic: #c05cff;
+    --r-legendary: #ffb020;
+    --r-mythic: #ff4d6d;
+    --r-godlike: #ffffff;
+    --font-display: 'Bungee', 'Arial Black', system-ui, sans-serif;
+    --font-body: 'Rubik', system-ui, -apple-system, sans-serif;
+  }
+  [hidden]{ display: none !important; }
+  html, body{ height: 100%; }
+  body{
+    margin: 0;
+    background: radial-gradient(1200px 800px at 50% -10%, #101a33, var(--bg) 62%);
+    color: var(--fg);
+    font-family: var(--font-body);
+    display: flex;
+    flex-direction: column;
+    touch-action: manipulation;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  #stage{
+    position: relative;
+    width: 1175px;
+    max-width: none;
+    aspect-ratio: 900 / 620;
+    flex-shrink: 0;
+    margin: 12px auto 0;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--bg-deep);
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+  }
+  #cv{ position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .pagefoot{
+    margin: 10px auto 14px;
+    font-size: 12px;
+    color: var(--fg-dim);
+    text-align: center;
+  }
+
+  /* ---- overlays ---- */
+  .screen{
+    position: absolute; inset: 0; z-index: 20;
+    display: flex;
+    background: rgba(6, 10, 20, 0.88);
+    backdrop-filter: blur(3px);
+    padding: 16px; overflow: auto; text-align: center;
+  }
+  .screen > .panel{ margin: auto; }
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 26px 28px;
+    width: 100%; max-width: 680px;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+  }
+  .panel h2{ margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.3px; }
+  .tagline{ color: var(--fg-dim); margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
+
+  .logo{
+    font-family: var(--font-display);
+    font-size: clamp(34px, 6vw, 54px);
+    line-height: 1.05; margin: 0;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-shadow: 0 0 26px rgba(255, 215, 106, 0.35), 0 4px 0 #4a3a12;
+  }
+  .mstats{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 16px 0 2px; }
+  .chip{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 11px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600; border: 1px solid;
+  }
+  .chip.gold{ color: var(--accent); border-color: rgba(255, 215, 106, 0.4); background: rgba(255, 215, 106, 0.1); }
+  .chip.neutral{ color: var(--fg-dim); border-color: var(--line); background: rgba(255, 255, 255, 0.04); }
+  .chip.common{ color: var(--r-common); border-color: rgba(154, 164, 178, 0.4); background: rgba(154, 164, 178, 0.1); }
+  .chip.uncommon{ color: var(--r-uncommon); border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.1); }
+  .chip.rare{ color: var(--r-rare); border-color: rgba(94, 162, 255, 0.4); background: rgba(94, 162, 255, 0.1); }
+  .chip.legendary{ color: var(--r-legendary); border-color: rgba(255, 176, 32, 0.45); background: rgba(255, 176, 32, 0.12); }
+  .chip.epic{ color: var(--r-epic); border-color: rgba(192, 92, 255, 0.45); background: rgba(192, 92, 255, 0.12); }
+  .chip.mythic{ color: var(--r-mythic); border-color: rgba(255, 77, 109, 0.5); background: rgba(255, 77, 109, 0.14); }
+  .chip.godlike{ color: #ffffff; border-color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.15); text-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
+  .chip.lv{ color: var(--accent); border-color: rgba(255, 215, 106, 0.35); background: rgba(255, 215, 106, 0.08); }
+  .chip.lv.max{ color: #ffffff; border-color: rgba(255, 215, 106, 0.7); background: rgba(255, 215, 106, 0.22); }
+  .chip.unknown{ color: var(--fg-dim); border-color: var(--line-soft); background: rgba(255, 255, 255, 0.03); }
+
+  .mbtns{ display: flex; flex-direction: column; gap: 10px; max-width: 340px; margin: 18px auto 0; }
+  .mbtns.row{ flex-direction: row; justify-content: center; flex-wrap: wrap; }
+  .btn{
+    font-family: var(--font-body); font-weight: 600; font-size: 15px;
+    color: var(--fg);
+    background: linear-gradient(180deg, #232e52, #161d36);
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 22px; cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  }
+  .btn:hover{ transform: translateY(-1px); border-color: #3c4a78; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+  .btn:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.primary{
+    background: linear-gradient(180deg, #ffdf8e, #e8a83c);
+    color: #241a05; border-color: #ffd76a; font-weight: 700;
+  }
+  .btn.mini{ font-size: 12px; padding: 7px 12px; border-radius: 9px; }
+  .controls-note{ color: var(--fg-dim); font-size: 12.5px; margin-top: 16px; }
+  .mfoot{ margin-top: 14px; display: flex; gap: 8px; justify-content: center; }
+
+  /* ---- character cards ---- */
+  .cgrid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px; margin: 16px 0 6px;
+  }
+  .ccard{
+    background: var(--card);
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    padding: 12px 10px 10px;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .ccard:hover{ border-color: #33406b; }
+  .ccard.selected{
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(255, 215, 106, 0.22);
+    transform: translateY(-2px);
+  }
+  .ccard.locked{ cursor: default; opacity: 0.62; }
+  .ccard.locked:hover{ border-color: var(--line-soft); }
+  .cport{ display: block; margin: 0 auto 8px; width: 76px; height: 76px; }
+  .cname{ font-weight: 700; font-size: 15px; letter-spacing: 0.2px; }
+  .cchipwrap{ margin: 4px 0 8px; }
+  .cstats{ display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+  .cstat{ display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--fg-dim); font-weight: 600; }
+  .cstat span{ width: 26px; text-align: right; letter-spacing: 0.5px; }
+  .cstat i{ flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+  .cstat b{ display: block; height: 100%; background: linear-gradient(90deg, #5ea2ff, #9ec2ff); border-radius: 2px; }
+  .cdesc{ font-size: 11.5px; color: var(--fg-dim); line-height: 1.4; min-height: 3em; }
+
+  /* ---- HUD ---- */
+  #hud{ position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .hudcard{
+    position: absolute; left: 12px; bottom: 10px; width: 234px;
+    background: rgba(10, 15, 30, 0.74);
+    border: 1px solid var(--line-soft);
+    border-radius: 12px; padding: 9px 12px;
+  }
+  .hname{ font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; }
+  .bufftag{ color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+  .hbar{
+    height: 10px; border-radius: 6px; margin-top: 5px;
+    background: rgba(255, 255, 255, 0.08); overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .hbar .fill{ height: 100%; width: 100%; border-radius: 6px; transition: width 0.12s linear; }
+  .fill.hp{ background: linear-gradient(180deg, #63d97a, #3aa958); }
+  .fill.hp.low{ background: linear-gradient(180deg, #ff7a5a, #d64545); }
+  .fill.sp{ background: linear-gradient(180deg, #ffe9a8, #e8a83c); }
+  .fill.sp.ready{ box-shadow: 0 0 10px rgba(255, 215, 106, 0.85); }
+  #hint{
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    font-size: 11.5px; color: var(--fg-dim);
+    background: rgba(10, 15, 30, 0.6);
+    padding: 5px 14px; border-radius: 999px; white-space: nowrap;
+  }
+  .auto-btn{
+    position: absolute; bottom: 34px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; font-weight: 600; font-family: var(--font-body);
+    color: var(--accent); background: rgba(10, 15, 30, 0.7);
+    border: 1px solid rgba(255, 215, 106, 0.45); border-radius: 999px;
+    padding: 4px 12px; cursor: pointer; pointer-events: auto;
+  }
+  .auto-btn.off{ color: var(--fg-dim); border-color: var(--line); }
+
+  /* ---- touch controls ---- */
+  #touch{ position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+  .tstick{
+    position: absolute; width: 116px; height: 116px; border-radius: 50%;
+    background: rgba(20, 28, 52, 0.5);
+    border: 2px solid rgba(122, 138, 190, 0.4);
+    pointer-events: auto; touch-action: none;
+  }
+  .tknob{
+    position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(233, 237, 248, 0.85);
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+  .tstick1{ left: 14px; bottom: 14px; }
+  .tbtn{
+    position: absolute; width: 62px; height: 62px; border-radius: 50%;
+    border: 2px solid rgba(255, 215, 106, 0.6);
+    background: rgba(232, 168, 60, 0.25); color: #ffd76a;
+    font-size: 22px; font-weight: 800; font-family: var(--font-body);
+    pointer-events: auto; touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tbtn:active{ background: rgba(232, 168, 60, 0.55); }
+  .tbtn1{ right: 14px; bottom: 14px; }
+  .tpause{
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 46px; height: 36px; border-radius: 10px;
+    border: 1px solid rgba(122, 138, 190, 0.4);
+    background: rgba(20, 28, 52, 0.6); color: var(--fg-dim);
+    font-size: 15px;
+    pointer-events: auto; touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  @media (pointer: coarse){
+    .hudcard{ top: 10px; bottom: auto; }
+    .auto-btn, #btnAutoMenu{ display: none; }
+  }
+
+  /* ---- banner ---- */
+  #banner{
+    position: absolute; inset: 0; z-index: 30; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-size: clamp(40px, 8vw, 78px);
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(255, 215, 106, 0.5), 0 5px 0 rgba(0, 0, 0, 0.45);
+    opacity: 0;
+  }
+  #banner.show{ animation: bannerPop 1.4s ease forwards; }
+  @keyframes bannerPop{
+    0%{ opacity: 0; transform: scale(0.6); }
+    15%{ opacity: 1; transform: scale(1.06); }
+    30%{ transform: scale(1); }
+    75%{ opacity: 1; }
+    100%{ opacity: 0; transform: scale(1.15); }
+  }
+
+  /* ---- screen flash ---- */
+  #flash{
+    position: absolute; inset: 0; z-index: 30; pointer-events: none;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.95) 0%, rgba(192,92,255,0.55) 75%);
+    opacity: 0;
+  }
+  #flash.show{ animation: flashFade 0.35s ease 3; }
+  @keyframes flashFade{ 0%{ opacity: 0.95; } 100%{ opacity: 0; } }
+
+  /* ---- result / unlock ---- */
+  #resTitle{ font-family: var(--font-display); font-size: clamp(30px, 5vw, 46px); margin: 0; letter-spacing: 1px; }
+  #resTitle.win{ color: var(--accent); text-shadow: 0 0 28px rgba(255, 215, 106, 0.45); }
+  #resTitle.lose{ color: var(--bad); text-shadow: 0 0 28px rgba(255, 90, 90, 0.4); }
+  .unlockbox{
+    display: flex; gap: 16px; align-items: center; text-align: left;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 18px; margin: 16px 0;
+  }
+  .unlockbox canvas{ width: 68px; height: 68px; flex: none; }
+  .unlocktxt{ min-width: 0; }
+  .unlockhead{ font-weight: 800; font-size: 14px; letter-spacing: 0.4px; }
+  .unlockname{ font-size: 19px; font-weight: 700; margin: 5px 0 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .unlockdesc{ color: var(--fg-dim); font-size: 13px; line-height: 1.45; }
+
+  @media (max-width: 620px){
+    .panel{ padding: 18px 14px; }
+    .cgrid{ grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+    .cport{ width: 60px; height: 60px; }
+    .hudcard{ width: 158px; }
+    #hint{ font-size: 10px; padding: 4px 10px; }
+    .unlockbox{ flex-direction: column; text-align: center; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    #banner.show{ animation: none; }
+    #flash.show{ animation: none; }
+  }
+</style>
+
+<main id="stage">
+  <canvas id="cv"></canvas>
+
+  <div id="hud" hidden>
+    <div class="hudcard" id="hudp1">
+      <div class="hname"><span id="h1name">Roi</span><span class="bufftag" id="h1buff"></span></div>
+      <div class="hbar"><div class="fill hp" id="h1hp"></div></div>
+      <div class="hbar"><div class="fill sp" id="h1sp"></div></div>
+    </div>
+    <div id="hint"></div>
+    <button id="btnAuto" class="auto-btn">🔫 Auto-shoot: ON</button>
+  </div>
+
+  <div id="banner"></div>
+  <div id="flash"></div>
+
+  <div id="touch" hidden>
+    <div class="tstick tstick1" id="stick1"><div class="tknob" id="knob1"></div></div>
+    <button class="tbtn tbtn1" id="tsp1">⚡</button>
+    <button class="tpause" id="tpause">⏸</button>
+  </div>
+
+  <div class="screen" id="scrMenu">
+    <div class="panel">
+      <h1 class="logo">DOOM</h1>
+      <p class="tagline">Top-down duels from above. Win battles to unlock all 75 champions — the rarer the champion, the rarer the drop.</p>
+      <div class="mstats">
+        <span class="chip gold">🏆 Wins <b id="mWins">0</b></span>
+        <span class="chip neutral">⭐ Champions <b id="mOwned">1/75</b></span>
+        <span class="chip neutral">💀 Rival power <b id="mPower">+0%</b></span>
+      </div>
+      <div class="mbtns">
+        <button class="btn primary" id="goDuel">⚔️ Duel — one rival</button>
+        <button class="btn" id="goBrawl">🔥 Brawl — three rivals</button>
+        <button class="btn" id="goRoster">📜 Roster</button>
+      </div>
+      <p class="controls-note">Arrow keys move · SPACE casts your special · P pause · M mute · Enter confirm</p>
+      <div class="mfoot">
+        <button class="btn mini" id="btnAutoMenu">🔫 Auto-shoot: ON</button>
+        <button class="btn mini" id="btnMute">🔊 Sound on</button>
+        <button class="btn mini" id="btnReset">Reset save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="scrSelect" hidden>
+    <div class="panel">
+      <h2 id="selTitle">Choose your champion</h2>
+      <p class="tagline">Every champion has an automatic attack and a SPACE special.</p>
+      <div class="cgrid" id="selectGrid"></div>
+      <div class="mbtns row">
+        <button class="btn" id="btnBackSel">Back</button>
+        <button class="btn primary" id="btnFight">Fight!</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="scrRoster" hidden>
+    <div class="panel">
+      <h2>Roster</h2>
+      <p class="tagline">Win a battle to roll for a new champion. Rarer champions drop far less often.</p>
+      <div class="cgrid" id="rosterGrid"></div>
+      <div class="mbtns row">
+        <button class="btn" id="btnBackRoster">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="scrResult" hidden>
+    <div class="panel">
+      <h2 id="resTitle"></h2>
+      <div id="resUnlock"></div>
+      <div class="mbtns row">
+        <button class="btn primary" id="btnAgain">Battle again</button>
+        <button class="btn" id="btnMenu">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="scrPause" hidden>
+    <div class="panel">
+      <h2>Paused</h2>
+      <div class="mbtns row">
+        <button class="btn primary" id="btnResume">Resume</button>
+        <button class="btn" id="btnQuit">Quit to menu</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<p class="pagefoot">DOOM · top-down 2D brawler · best played on desktop with a keyboard</p>
+
+<script>
+'use strict';
+/* ================= DOOM ================= */
+
+/* ---------- constants & utils ---------- */
+const W = 900, H = 620, WALL = 30;
+const TAU = Math.PI * 2;
+const PILLARS = [
+  { x: 160, y: 150, r: 26 },
+  { x: 740, y: 150, r: 26 },
+  { x: 450, y: 100, r: 24 },
+  { x: 300, y: 480, r: 26 },
+  { x: 600, y: 480, r: 26 },
+];
+
+const rand = (a, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+function angleDiff(a, b){ let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; }
+function shadeHex(hex, amt){
+  const n = parseInt(hex.slice(1), 16);
+  const r = clamp((n >> 16) + amt, 0, 255), g = clamp(((n >> 8) & 255) + amt, 0, 255), b = clamp((n & 255) + amt, 0, 255);
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ---------- audio (WebAudio, tiny synth) ---------- */
+const AudioFX = (() => {
+  let ctx = null, master = null, muted = false;
+  function ensure(){
+    if (!ctx){
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain(); master.gain.value = 0.16; master.connect(ctx.destination);
+      } catch(e){ return false; }
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return true;
+  }
+  function tone(freq, dur, type, vol, slide){
+    if (muted || !ensure()) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol){
+    if (muted || !ensure()) return;
+    const t = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    const b = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    n.buffer = b;
+    const g = ctx.createGain(); g.gain.value = vol;
+    n.connect(g); g.connect(master);
+    n.start(t);
+  }
+  const seq = (freqs, type, vol, gap) => freqs.forEach((f, i) => setTimeout(() => tone(f, 0.22, type, vol), i * gap));
+  return {
+    setMuted(m){ muted = m; },
+    hit(){ tone(220, 0.08, 'square', 0.28, -130); },
+    shoot(){ tone(620, 0.07, 'triangle', 0.22, -220); },
+    swing(){ noise(0.06, 0.12); },
+    special(){ noise(0.24, 0.3); tone(150, 0.22, 'sawtooth', 0.18, 320); },
+    click(){ tone(700, 0.05, 'square', 0.16); },
+    unlock(){ seq([523, 659, 784, 1047], 'triangle', 0.26, 95); },
+    win(){ seq([392, 523, 659, 784], 'square', 0.22, 130); },
+    lose(){ seq([330, 262, 196, 131], 'sawtooth', 0.2, 160); },
+  };
+})();
+
+/* ---------- champions ---------- */
+const RARITY = {
+  common:    { label: 'Common',    color: '#9aa4b2' },
+  uncommon:  { label: 'Uncommon',  color: '#4ade80' },
+  rare:      { label: 'Rare',      color: '#5ea2ff' },
+  epic:      { label: 'Epic',      color: '#c05cff' },
+  legendary: { label: 'Legendary', color: '#ffb020' },
+  mythic:    { label: 'Mythic',    color: '#ff4d6d' },
+  godlike:   { label: 'Godlike',   color: '#ffffff' },
+};
+const UNLOCK_WEIGHTS = {
+  Ranger: 12, Lil: 12, Roi: 13, Fay: 10, Kili: 10, Nibe: 10, Yuosane: 8,
+  Umbra: 8, Titan: 8, Blaze: 7,
+  Austus: 5, 'Lucy Ray': 5, 'Susie Ray': 4, 'Oosie Ray': 4, Funulikas: 3,
+  Miko: 3, Pip: 3, Nyla: 3, Vespa: 3,
+  Vale: 3, Tora: 3, Mizu: 3, Grimm: 3, Pixel: 3, Bolo: 2, Saki: 2, Reaper: 2,
+  Zephyr: 1.5, Ignis: 1.5, Rocko: 1.5, Venom: 1.5, Echo: 1.5, Nova: 1.5, Aurora: 1.5,
+  Voltar: 0.6, Glacia: 0.6, Graviton: 0.6, Mirage: 0.6, Doom: 0.6,
+  Astra: 0.3, Null: 0.3, Helios: 0.3, Wraith: 0.3, Eternia: 0.3,
+  Zenith: 0.15,
+  Peck: 9, Slim: 9, Bounce: 9, Whisper: 9, Gusty: 9,
+  Snappy: 3, Twinkle: 3, Gloom: 3, Flora: 3, Rumble: 3,
+  Crescent: 2, Pounce: 2, Splash: 2, Shade: 2, Whirl: 2,
+  Pyro: 1.2, Storm: 1.2, Tundra: 1.2, Prism: 1.2, Havoc: 1.2,
+  Titanus: 0.5, Krakena: 0.5, Valor: 0.5, Cyclonia: 0.5, Seraphim: 0.5,
+  Abyss: 0.25, Phantom: 0.25, Stellaris: 0.25, Warden: 0.25, Grimheart: 0.25,
+};
+const CHAR_ORDER = ['Ranger', 'Lil', 'Roi', 'Fay', 'Kili', 'Nibe', 'Yuosane', 'Umbra', 'Titan', 'Blaze', 'Peck', 'Slim', 'Bounce', 'Whisper', 'Gusty', 'Austus', 'Lucy Ray', 'Susie Ray', 'Oosie Ray', 'Funulikas', 'Miko', 'Pip', 'Nyla', 'Vespa', 'Snappy', 'Twinkle', 'Gloom', 'Flora', 'Rumble', 'Vale', 'Tora', 'Mizu', 'Grimm', 'Pixel', 'Bolo', 'Saki', 'Reaper', 'Crescent', 'Pounce', 'Splash', 'Shade', 'Whirl', 'Zephyr', 'Ignis', 'Rocko', 'Venom', 'Echo', 'Nova', 'Aurora', 'Pyro', 'Storm', 'Tundra', 'Prism', 'Havoc', 'Voltar', 'Glacia', 'Graviton', 'Mirage', 'Doom', 'Titanus', 'Krakena', 'Valor', 'Cyclonia', 'Seraphim', 'Astra', 'Null', 'Helios', 'Wraith', 'Eternia', 'Abyss', 'Phantom', 'Stellaris', 'Warden', 'Grimheart', 'Zenith'];
+const CHARS = {
+  Ranger: {
+    name: 'Ranger', rarity: 'common', body: '#4f9d5d', trim: '#d8e8d0',
+    hp: 100, speed: 155, dmg: 12, range: 230, atkCd: 0.6, arc: 18, atkType: 'ranged',
+    special: 'Coconut', specialKey: 'coconut', specialCd: 6, specialRange: 240,
+    specialDesc: 'Hurl a heavy coconut that bounces once and sends rivals flying.',
+  },
+  Lil: {
+    name: 'Lil', rarity: 'common', body: '#ff8fab', trim: '#ffffff',
+    hp: 95, speed: 178, dmg: 9, range: 34, atkCd: 0.28, arc: 80, atkType: 'melee',
+    special: 'Thunderstorm', specialKey: 'thunderstorm', specialCd: 8, specialRange: 160,
+    specialDesc: 'Call three lightning bolts down on nearby rivals.',
+  },
+  Roi: {
+    name: 'Roi', rarity: 'common', body: '#e0514e', trim: '#ffd76a',
+    hp: 120, speed: 150, dmg: 14, range: 42, atkCd: 0.55, arc: 75, atkType: 'melee',
+    special: 'Feather Chop', specialKey: 'featherChop', specialCd: 6, specialRange: 190,
+    specialDesc: 'Dash forward in a flurry of feathers, chopping through rivals.',
+  },
+  Fay: {
+    name: 'Fay', rarity: 'common', body: '#9b7ede', trim: '#e8dcff',
+    hp: 90, speed: 165, dmg: 13, range: 200, atkCd: 0.5, arc: 18, atkType: 'ranged',
+    special: 'Feather Chop', specialKey: 'featherChop', specialCd: 6, specialRange: 190,
+    specialDesc: 'Dash forward in a flurry of feathers, chopping through rivals.',
+  },
+  Kili: {
+    name: 'Kili', rarity: 'common', body: '#8a9a76', trim: '#c8d8b4',
+    hp: 165, speed: 125, dmg: 22, range: 46, atkCd: 0.85, arc: 95, atkType: 'melee',
+    special: 'Coconut', specialKey: 'coconut', specialCd: 7, specialRange: 180,
+    specialDesc: 'Hurl a heavy coconut that bounces once and sends rivals flying.',
+  },
+  Nibe: {
+    name: 'Nibe', rarity: 'common', body: '#544d8f', trim: '#b7a8ff',
+    hp: 105, speed: 185, dmg: 16, range: 38, atkCd: 0.45, arc: 85, atkType: 'melee',
+    special: 'Double Kick', specialKey: 'doubleKick', specialCd: 6, specialRange: 140,
+    specialDesc: 'Lunge forward, landing two kicks on every rival in your path.',
+  },
+  Yuosane: {
+    name: 'Yuosane', rarity: 'common', body: '#f28c28', trim: '#ffdf7e',
+    hp: 130, speed: 160, dmg: 18, range: 52, atkCd: 0.7, arc: 105, atkType: 'melee',
+    special: 'Lightning', specialKey: 'lightning', specialCd: 8, specialRange: 320,
+    specialDesc: 'Strike the nearest rival with a stunning bolt of lightning.',
+  },
+  Austus: {
+    name: 'Austus', rarity: 'uncommon', body: '#3fae9e', trim: '#e0fff2',
+    hp: 115, speed: 155, dmg: 13, range: 40, atkCd: 0.5, arc: 80, atkType: 'melee',
+    special: 'Lucky Throw', specialKey: 'luckyThrow', specialCd: 6, specialRange: 260,
+    specialDesc: 'Fling a lucky coin — damage is a gamble, and it can crit for triple.',
+  },
+  'Lucy Ray': {
+    name: 'Lucy Ray', rarity: 'uncommon', body: '#e86bb8', trim: '#ffffff',
+    hp: 95, speed: 160, dmg: 12, range: 200, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Rainbow Ray', specialKey: 'rainbowRay', specialCd: 7, specialRange: 260,
+    specialDesc: 'Fire a rainbow ray that pierces every rival in a line.',
+  },
+  'Susie Ray': {
+    name: 'Susie Ray', rarity: 'uncommon', body: '#ffc94d', trim: '#fff6d8',
+    hp: 100, speed: 150, dmg: 11, range: 190, atkCd: 0.6, arc: 18, atkType: 'ranged',
+    special: 'Sunshine Ray', specialKey: 'sunshineRay', specialCd: 8, specialRange: 250,
+    specialDesc: 'Blast a warm ray through rivals and restore your own health.',
+  },
+  'Oosie Ray': {
+    name: 'Oosie Ray', rarity: 'uncommon', body: '#3a3554', trim: '#8f86c9',
+    hp: 105, speed: 155, dmg: 12, range: 195, atkCd: 0.58, arc: 18, atkType: 'ranged',
+    special: 'Darkness Ray', specialKey: 'darknessRay', specialCd: 8, specialRange: 250,
+    specialDesc: 'Fire a dark ray that pierces rivals and slows them.',
+  },
+  Funulikas: {
+    name: 'Funulikas', rarity: 'uncommon', body: '#e07a2a', trim: '#ffdca0',
+    hp: 110, speed: 170, dmg: 15, range: 36, atkCd: 0.45, arc: 85, atkType: 'melee',
+    special: 'Stripe Kill', specialKey: 'stripeKill', specialCd: 7, specialRange: 200,
+    specialDesc: 'Dash, leaving a trail of killer stripes that burns rivals standing in it.',
+  },
+  Miko: {
+    name: 'Miko', rarity: 'uncommon', body: '#7fae6e', trim: '#e8f5e0',
+    hp: 100, speed: 155, dmg: 12, range: 36, atkCd: 0.45, arc: 85, atkType: 'melee',
+    special: 'Fan Gust', specialKey: 'fanGust', specialCd: 7, specialRange: 130,
+    specialDesc: 'Blast rivals away with a powerful gust of wind from your fan.',
+  },
+  Pip: {
+    name: 'Pip', rarity: 'uncommon', body: '#8fbf4a', trim: '#f2ffd0',
+    hp: 90, speed: 170, dmg: 11, range: 190, atkCd: 0.5, arc: 18, atkType: 'ranged',
+    special: 'Seed Spit', specialKey: 'seedSpit', specialCd: 6, specialRange: 220,
+    specialDesc: 'Spit a rapid burst of four seeds at your target.',
+  },
+  Nyla: {
+    name: 'Nyla', rarity: 'uncommon', body: '#c86b9f', trim: '#ffdff0',
+    hp: 105, speed: 150, dmg: 12, range: 195, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Sticky Goo', specialKey: 'stickyGoo', specialCd: 7, specialRange: 230,
+    specialDesc: 'Lob a goo puddle that slows every rival standing in it.',
+  },
+  Vale: {
+    name: 'Vale', rarity: 'rare', body: '#9fb4c8', trim: '#eef6ff',
+    hp: 100, speed: 160, dmg: 14, range: 38, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Moonlight Blade', specialKey: 'moonlightBlade', specialCd: 7, specialRange: 280,
+    specialDesc: 'Throw a crescent blade that flies out and returns, slicing rivals both ways.',
+  },
+  Tora: {
+    name: 'Tora', rarity: 'rare', body: '#e8912d', trim: '#ffd9a0',
+    hp: 125, speed: 160, dmg: 16, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Tiger Pounce', specialKey: 'tigerPounce', specialCd: 8, specialRange: 260,
+    specialDesc: 'Pounce on a rival and slam the ground, stunning everyone nearby.',
+  },
+  Mizu: {
+    name: 'Mizu', rarity: 'rare', body: '#4aa3df', trim: '#d8f2ff',
+    hp: 100, speed: 155, dmg: 12, range: 210, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Tidal Wave', specialKey: 'tidalWave', specialCd: 7, specialRange: 250,
+    specialDesc: 'Send a wide wave rolling forward that pushes rivals back.',
+  },
+  Grimm: {
+    name: 'Grimm', rarity: 'rare', body: '#7a3f5c', trim: '#e8b8d0',
+    hp: 125, speed: 140, dmg: 17, range: 42, atkCd: 0.6, arc: 85, atkType: 'melee',
+    special: 'Soul Drain', specialKey: 'soulDrain', specialCd: 8, specialRange: 110,
+    specialDesc: 'Drain nearby rivals, healing yourself for each one hit.',
+  },
+  Pixel: {
+    name: 'Pixel', rarity: 'rare', body: '#46c8e0', trim: '#e0fbff',
+    hp: 95, speed: 185, dmg: 13, range: 36, atkCd: 0.42, arc: 85, atkType: 'melee',
+    special: 'Error Glitch', specialKey: 'errorGlitch', specialCd: 7, specialRange: 240,
+    specialDesc: 'Glitch next to a rival. Your next strike deals extra damage.',
+  },
+  Bolo: {
+    name: 'Bolo', rarity: 'rare', body: '#d84f4f', trim: '#ffd0a8',
+    hp: 120, speed: 150, dmg: 15, range: 40, atkCd: 0.52, arc: 85, atkType: 'melee',
+    special: 'Yoyo Swing', specialKey: 'yoyoSwing', specialCd: 8, specialRange: 120,
+    specialDesc: 'Spin a yoyo around yourself that hits everyone who gets close.',
+  },
+  Saki: {
+    name: 'Saki', rarity: 'rare', body: '#e84f7a', trim: '#ffd6e0',
+    hp: 95, speed: 160, dmg: 12, range: 200, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Cherry Bomb', specialKey: 'cherryBomb', specialCd: 7, specialRange: 240,
+    specialDesc: 'Lob a cherry bomb that explodes in an area after a moment.',
+  },
+  Zephyr: {
+    name: 'Zephyr', rarity: 'epic', body: '#7fd8c8', trim: '#f0fffb',
+    hp: 110, speed: 175, dmg: 15, range: 38, atkCd: 0.45, arc: 85, atkType: 'melee',
+    special: 'Tempest', specialKey: 'tempest', specialCd: 8, specialRange: 130,
+    specialDesc: 'A howling wind blast sends every nearby rival flying.',
+  },
+  Ignis: {
+    name: 'Ignis', rarity: 'epic', body: '#e85a3c', trim: '#ffd9a8',
+    hp: 115, speed: 160, dmg: 17, range: 42, atkCd: 0.55, arc: 90, atkType: 'melee',
+    special: 'Inferno', specialKey: 'inferno', specialCd: 9, specialRange: 200,
+    specialDesc: 'Erupt with a ring of fireballs that burn everyone they touch.',
+  },
+  Rocko: {
+    name: 'Rocko', rarity: 'epic', body: '#a08a6a', trim: '#f0e4cc',
+    hp: 150, speed: 130, dmg: 20, range: 44, atkCd: 0.7, arc: 90, atkType: 'melee',
+    special: 'Avalanche', specialKey: 'avalanche', specialCd: 8, specialRange: 260,
+    specialDesc: 'Roll three boulders that plow through every rival in a line.',
+  },
+  Venom: {
+    name: 'Venom', rarity: 'epic', body: '#5cbf7f', trim: '#d8ffe6',
+    hp: 110, speed: 165, dmg: 14, range: 38, atkCd: 0.48, arc: 85, atkType: 'melee',
+    special: 'Venomous Cloud', specialKey: 'venomCloud', specialCd: 8, specialRange: 120,
+    specialDesc: 'Sprout three poison puddles that damage rivals standing in them.',
+  },
+  Echo: {
+    name: 'Echo', rarity: 'epic', body: '#c9c2e8', trim: '#ffffff',
+    hp: 105, speed: 165, dmg: 13, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Doppelganger', specialKey: 'doppelganger', specialCd: 10, specialRange: 200,
+    specialDesc: 'Summon a shadow clone that fights beside you for 6 seconds.',
+  },
+  Nova: {
+    name: 'Nova', rarity: 'epic', body: '#ff9a5c', trim: '#ffe0c0',
+    hp: 100, speed: 150, dmg: 13, range: 210, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Meteor', specialKey: 'meteor', specialCd: 9, specialRange: 300,
+    specialDesc: 'Call down a meteor that craters the ground and stuns rivals.',
+  },
+  Aurora: {
+    name: 'Aurora', rarity: 'epic', body: '#a56bf0', trim: '#e8dcff',
+    hp: 100, speed: 160, dmg: 13, range: 205, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Aurora Burst', specialKey: 'auroraBurst', specialCd: 8, specialRange: 230,
+    specialDesc: 'Burst with twelve aurora bolts in every direction.',
+  },
+  Umbra: {
+    name: 'Umbra', rarity: 'common', body: '#2e2a4a', trim: '#9a8fd0',
+    hp: 100, speed: 185, dmg: 15, range: 38, atkCd: 0.45, arc: 85, atkType: 'melee',
+    special: 'Shadow Realm', specialKey: 'shadowRealm', specialCd: 8, specialRange: 280,
+    specialDesc: 'Slip behind a rival and strike with double damage.',
+  },
+  Titan: {
+    name: 'Titan', rarity: 'common', body: '#9a8a72', trim: '#e8dcc8',
+    hp: 160, speed: 120, dmg: 21, range: 46, atkCd: 0.75, arc: 95, atkType: 'melee',
+    special: 'Earthquake', specialKey: 'earthquake', specialCd: 10, specialRange: 500,
+    specialDesc: 'Shake the whole arena, damaging and stunning every rival.',
+  },
+  Blaze: {
+    name: 'Blaze', rarity: 'common', body: '#ff7a4d', trim: '#ffd9a8',
+    hp: 105, speed: 155, dmg: 14, range: 215, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Meteor Shower', specialKey: 'meteorShower', specialCd: 10, specialRange: 300,
+    specialDesc: 'Rain three meteors down around your target.',
+  },
+  Vespa: {
+    name: 'Vespa', rarity: 'uncommon', body: '#5a4a8f', trim: '#c9b8ff',
+    hp: 100, speed: 170, dmg: 13, range: 200, atkCd: 0.5, arc: 18, atkType: 'ranged',
+    special: 'Bat Swarm', specialKey: 'batSwarm', specialCd: 8, specialRange: 260,
+    specialDesc: 'Release four bats that hunt down rivals on their own.',
+  },
+  Reaper: {
+    name: 'Reaper', rarity: 'rare', body: '#5a3f6b', trim: '#d0b8e8',
+    hp: 105, speed: 175, dmg: 15, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Soul Harvest', specialKey: 'soulHarvest', specialCd: 8, specialRange: 190,
+    specialDesc: 'Dash through rivals, healing yourself for each one you hit.',
+  },
+  Voltar: {
+    name: 'Voltar', rarity: 'legendary', body: '#7fd4ff', trim: '#eaffff',
+    hp: 105, speed: 165, dmg: 14, range: 42, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Thunder God', specialKey: 'thunderGod', specialCd: 9, specialRange: 320,
+    specialDesc: 'Call five lightning bolts down around your rivals, stunning them.',
+  },
+  Glacia: {
+    name: 'Glacia', rarity: 'legendary', body: '#bfe8ff', trim: '#ffffff',
+    hp: 110, speed: 155, dmg: 14, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Blizzard', specialKey: 'blizzard', specialCd: 9, specialRange: 140,
+    specialDesc: 'Freeze everyone nearby with a blizzard that damages and slows.',
+  },
+  Graviton: {
+    name: 'Graviton', rarity: 'legendary', body: '#8a6cc9', trim: '#e8dcff',
+    hp: 110, speed: 150, dmg: 14, range: 200, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Gravity Well', specialKey: 'gravityWell', specialCd: 9, specialRange: 260,
+    specialDesc: 'Open a gravity well that drags rivals toward its center.',
+  },
+  Mirage: {
+    name: 'Mirage', rarity: 'legendary', body: '#4a4566', trim: '#d8d4f0',
+    hp: 105, speed: 170, dmg: 13, range: 40, atkCd: 0.48, arc: 85, atkType: 'melee',
+    special: 'Mirror Images', specialKey: 'mirrorImages', specialCd: 11, specialRange: 200,
+    specialDesc: 'Summon two shadow clones that fight beside you.',
+  },
+  Doom: {
+    name: 'Doom', rarity: 'legendary', body: '#2a2540', trim: '#8f86c9',
+    hp: 115, speed: 145, dmg: 16, range: 210, atkCd: 0.58, arc: 18, atkType: 'ranged',
+    special: 'Void Rift', specialKey: 'voidRift', specialCd: 11, specialRange: 300,
+    specialDesc: 'Tear open a void rift — a massive delayed explosion at the target.',
+  },
+  Astra: {
+    name: 'Astra', rarity: 'mythic', body: '#ff6b8f', trim: '#ffe0ea',
+    hp: 105, speed: 160, dmg: 14, range: 220, atkCd: 0.52, arc: 18, atkType: 'ranged',
+    special: 'Starfall', specialKey: 'starfall', specialCd: 9, specialRange: 320,
+    specialDesc: 'Rain five meteors across the arena, one near every rival.',
+  },
+  Null: {
+    name: 'Null', rarity: 'mythic', body: '#b054d8', trim: '#f0dcff',
+    hp: 120, speed: 150, dmg: 16, range: 44, atkCd: 0.55, arc: 85, atkType: 'melee',
+    special: 'Event Horizon', specialKey: 'eventHorizon', specialCd: 10, specialRange: 160,
+    specialDesc: 'Bend gravity around you, dragging every rival in from far away.',
+  },
+  Helios: {
+    name: 'Helios', rarity: 'mythic', body: '#f8a838', trim: '#fff0c8',
+    hp: 105, speed: 155, dmg: 15, range: 225, atkCd: 0.52, arc: 18, atkType: 'ranged',
+    special: 'Solar Flare', specialKey: 'solarFlare', specialCd: 9, specialRange: 340,
+    specialDesc: 'Fire a colossal solar beam that pierces and burns everyone it hits.',
+  },
+  Wraith: {
+    name: 'Wraith', rarity: 'mythic', body: '#7a6cc9', trim: '#e0d8ff',
+    hp: 110, speed: 180, dmg: 14, range: 40, atkCd: 0.46, arc: 85, atkType: 'melee',
+    special: 'Phantom Army', specialKey: 'phantomArmy', specialCd: 11, specialRange: 200,
+    specialDesc: 'Summon three shadow clones that fight beside you.',
+  },
+  Eternia: {
+    name: 'Eternia', rarity: 'mythic', body: '#ff4d6d', trim: '#ffd6e0',
+    hp: 115, speed: 155, dmg: 15, range: 215, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Chrono Lock', specialKey: 'chronoLock', specialCd: 10, specialRange: 320,
+    specialDesc: 'Lock time itself — every rival slows to a crawl and takes damage.',
+  },
+  Zenith: {
+    name: 'Zenith', rarity: 'godlike', body: '#e8ecff', trim: '#ffd76a',
+    hp: 140, speed: 170, dmg: 18, range: 48, atkCd: 0.45, arc: 90, atkType: 'melee',
+    lives: 3,
+    special: 'Divine Arsenal', specialKey: 'godlike', specialCd: 4, specialRange: 340,
+    specialDesc: 'Five specials that cycle with each SPACE: Divine Smite, Celestial Barrage, Prism Ray, Judgment, Astral Rush. Has 3 lives.',
+  },
+  Peck: {
+    name: 'Peck', rarity: 'common', body: '#c8a15a', trim: '#fff0d0',
+    hp: 95, speed: 165, dmg: 10, range: 34, atkCd: 0.35, arc: 80, atkType: 'melee',
+    special: 'Gust', specialKey: 'fanGust', specialCd: 7, specialRange: 130,
+    specialDesc: 'Blast rivals away with a powerful gust of wind.',
+  },
+  Slim: {
+    name: 'Slim', rarity: 'common', body: '#7ecb6a', trim: '#e0ffd8',
+    hp: 100, speed: 150, dmg: 10, range: 190, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Sticky Puddle', specialKey: 'stickyGoo', specialCd: 7, specialRange: 230,
+    specialDesc: 'Lob a goo puddle that slows every rival standing in it.',
+  },
+  Bounce: {
+    name: 'Bounce', rarity: 'common', body: '#f08a5c', trim: '#ffe0c8',
+    hp: 105, speed: 160, dmg: 12, range: 36, atkCd: 0.5, arc: 80, atkType: 'melee',
+    special: 'Bouncy Ball', specialKey: 'coconut', specialCd: 6, specialRange: 220,
+    specialDesc: 'Hurl a bouncing ball that sends rivals flying.',
+  },
+  Whisper: {
+    name: 'Whisper', rarity: 'common', body: '#8a86b8', trim: '#e0d8ff',
+    hp: 90, speed: 175, dmg: 11, range: 36, atkCd: 0.4, arc: 85, atkType: 'melee',
+    special: 'Shadow Dash', specialKey: 'featherChop', specialCd: 6, specialRange: 190,
+    specialDesc: 'Dash through rivals in a blur.',
+  },
+  Gusty: {
+    name: 'Gusty', rarity: 'common', body: '#b8a878', trim: '#f0e8c8',
+    hp: 95, speed: 160, dmg: 10, range: 185, atkCd: 0.5, arc: 18, atkType: 'ranged',
+    special: 'Pebble Fling', specialKey: 'seedSpit', specialCd: 6, specialRange: 220,
+    specialDesc: 'Fling a rapid burst of four pebbles.',
+  },
+  Snappy: {
+    name: 'Snappy', rarity: 'uncommon', body: '#7fd8c8', trim: '#e0fff8',
+    hp: 105, speed: 170, dmg: 13, range: 38, atkCd: 0.45, arc: 85, atkType: 'melee',
+    special: 'Chomp', specialKey: 'doubleKick', specialCd: 6, specialRange: 140,
+    specialDesc: 'Lunge forward, landing two bites on every rival in your path.',
+  },
+  Twinkle: {
+    name: 'Twinkle', rarity: 'uncommon', body: '#ffd23c', trim: '#fffbe0',
+    hp: 95, speed: 165, dmg: 12, range: 200, atkCd: 0.5, arc: 18, atkType: 'ranged',
+    special: 'Star Toss', specialKey: 'luckyThrow', specialCd: 6, specialRange: 260,
+    specialDesc: 'Fling a lucky star — damage is a gamble, and it can crit for triple.',
+  },
+  Gloom: {
+    name: 'Gloom', rarity: 'uncommon', body: '#5a4a7a', trim: '#c9b8e8',
+    hp: 105, speed: 155, dmg: 12, range: 195, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Dark Bolt', specialKey: 'darknessRay', specialCd: 8, specialRange: 250,
+    specialDesc: 'Fire a dark ray that pierces rivals and slows them.',
+  },
+  Flora: {
+    name: 'Flora', rarity: 'uncommon', body: '#e878a8', trim: '#ffe0ec',
+    hp: 95, speed: 165, dmg: 11, range: 190, atkCd: 0.5, arc: 18, atkType: 'ranged',
+    special: 'Petal Burst', specialKey: 'seedSpit', specialCd: 6, specialRange: 220,
+    specialDesc: 'Scatter four petals at your target.',
+  },
+  Rumble: {
+    name: 'Rumble', rarity: 'uncommon', body: '#a88a68', trim: '#e8d8c0',
+    hp: 120, speed: 145, dmg: 14, range: 40, atkCd: 0.55, arc: 85, atkType: 'melee',
+    special: 'Quake Punch', specialKey: 'earthquake', specialCd: 9, specialRange: 400,
+    specialDesc: 'Punch the ground, shaking every rival on the field.',
+  },
+  Crescent: {
+    name: 'Crescent', rarity: 'rare', body: '#a8bcc8', trim: '#f0f8ff',
+    hp: 100, speed: 160, dmg: 14, range: 38, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Moon Sickle', specialKey: 'moonlightBlade', specialCd: 7, specialRange: 280,
+    specialDesc: 'Throw a crescent blade that flies out and returns.',
+  },
+  Pounce: {
+    name: 'Pounce', rarity: 'rare', body: '#e8a05c', trim: '#ffe0b8',
+    hp: 125, speed: 160, dmg: 16, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Wild Leap', specialKey: 'tigerPounce', specialCd: 8, specialRange: 260,
+    specialDesc: 'Pounce on a rival and slam the ground.',
+  },
+  Splash: {
+    name: 'Splash', rarity: 'rare', body: '#5ab8e8', trim: '#d8f2ff',
+    hp: 100, speed: 155, dmg: 12, range: 210, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Tidal Surge', specialKey: 'tidalWave', specialCd: 7, specialRange: 250,
+    specialDesc: 'Send a wide wave rolling forward that pushes rivals back.',
+  },
+  Shade: {
+    name: 'Shade', rarity: 'rare', body: '#6a5a9f', trim: '#d0c8f0',
+    hp: 95, speed: 185, dmg: 13, range: 36, atkCd: 0.42, arc: 85, atkType: 'melee',
+    special: 'Vanish Strike', specialKey: 'errorGlitch', specialCd: 7, specialRange: 240,
+    specialDesc: 'Glitch next to a rival. Your next strike deals extra damage.',
+  },
+  Whirl: {
+    name: 'Whirl', rarity: 'rare', body: '#e06868', trim: '#ffd0c8',
+    hp: 120, speed: 150, dmg: 15, range: 40, atkCd: 0.52, arc: 85, atkType: 'melee',
+    special: 'Spin Cycle', specialKey: 'yoyoSwing', specialCd: 8, specialRange: 120,
+    specialDesc: 'Spin a yo-yo around yourself that hits everyone who gets close.',
+  },
+  Pyro: {
+    name: 'Pyro', rarity: 'epic', body: '#f06a4a', trim: '#ffd9b0',
+    hp: 115, speed: 160, dmg: 17, range: 42, atkCd: 0.55, arc: 90, atkType: 'melee',
+    special: 'Flame Ring', specialKey: 'inferno', specialCd: 9, specialRange: 200,
+    specialDesc: 'Erupt with a ring of fireballs that burn everyone they touch.',
+  },
+  Storm: {
+    name: 'Storm', rarity: 'epic', body: '#8fe0ff', trim: '#eaffff',
+    hp: 100, speed: 160, dmg: 13, range: 205, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Bolt Fury', specialKey: 'chainLightning', specialCd: 8, specialRange: 320,
+    specialDesc: 'Lightning arcs from one rival to the next, up to three targets.',
+  },
+  Tundra: {
+    name: 'Tundra', rarity: 'epic', body: '#d0f0ff', trim: '#ffffff',
+    hp: 120, speed: 155, dmg: 16, range: 40, atkCd: 0.55, arc: 85, atkType: 'melee',
+    special: 'Deep Freeze', specialKey: 'timeFreeze', specialCd: 10, specialRange: 200,
+    specialDesc: 'Freeze time for your rivals, slowing them to a crawl.',
+  },
+  Prism: {
+    name: 'Prism', rarity: 'epic', body: '#fff0b8', trim: '#ffffff',
+    hp: 100, speed: 155, dmg: 14, range: 220, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Light Lance', specialKey: 'solarBeam', specialCd: 8, specialRange: 320,
+    specialDesc: 'Fire a blinding solar beam that pierces everything in a line.',
+  },
+  Havoc: {
+    name: 'Havoc', rarity: 'epic', body: '#d068ff', trim: '#f0dcff',
+    hp: 100, speed: 165, dmg: 14, range: 205, atkCd: 0.52, arc: 18, atkType: 'ranged',
+    special: 'Wild Card', specialKey: 'wildMagic', specialCd: 8, specialRange: 280,
+    specialDesc: 'Cast a random spell: fire ring, rainbow ray, lightning, or meteor.',
+  },
+  Titanus: {
+    name: 'Titanus', rarity: 'legendary', body: '#b09878', trim: '#e8dcc8',
+    hp: 160, speed: 120, dmg: 21, range: 46, atkCd: 0.75, arc: 95, atkType: 'melee',
+    special: 'Aftershock', specialKey: 'supernova', specialCd: 10, specialRange: 220,
+    specialDesc: 'Detonate into sixteen fireballs that burn everyone they touch.',
+  },
+  Krakena: {
+    name: 'Krakena', rarity: 'legendary', body: '#4f8ac8', trim: '#bfe0ff',
+    hp: 120, speed: 150, dmg: 15, range: 42, atkCd: 0.55, arc: 85, atkType: 'melee',
+    special: 'Tidal Crush', specialKey: 'tidalCrush', specialCd: 9, specialRange: 260,
+    specialDesc: 'Crash three waves forward, sweeping rivals away.',
+  },
+  Valor: {
+    name: 'Valor', rarity: 'legendary', body: '#f06a5c', trim: '#ffd0c0',
+    hp: 110, speed: 160, dmg: 15, range: 44, atkCd: 0.55, arc: 80, atkType: 'melee',
+    special: 'Spear Rain', specialKey: 'spearCharge', specialCd: 8, specialRange: 300,
+    specialDesc: 'Hurl a spear that pierces every rival in its path.',
+  },
+  Cyclonia: {
+    name: 'Cyclonia', rarity: 'legendary', body: '#9fc8b0', trim: '#e0f0e0',
+    hp: 110, speed: 165, dmg: 14, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Twister', specialKey: 'tornado', specialCd: 9, specialRange: 220,
+    specialDesc: 'Send a tornado rolling forward that drags rivals in and shreds them.',
+  },
+  Seraphim: {
+    name: 'Seraphim', rarity: 'legendary', body: '#fff8e8', trim: '#ffffff',
+    hp: 105, speed: 155, dmg: 14, range: 220, atkCd: 0.55, arc: 18, atkType: 'ranged',
+    special: 'Divine Ray', specialKey: 'divineRay', specialCd: 9, specialRange: 320,
+    specialDesc: 'Fire a colossal rainbow ray that pierces everything in a line.',
+  },
+  Abyss: {
+    name: 'Abyss', rarity: 'mythic', body: '#1e1a30', trim: '#8f86c9',
+    hp: 115, speed: 145, dmg: 16, range: 210, atkCd: 0.58, arc: 18, atkType: 'ranged',
+    special: 'World Ender', specialKey: 'voidRift', specialCd: 11, specialRange: 300,
+    specialDesc: 'Tear open a void rift — a massive delayed explosion at the target.',
+  },
+  Phantom: {
+    name: 'Phantom', rarity: 'mythic', body: '#8a7cd9', trim: '#e0d8ff',
+    hp: 110, speed: 180, dmg: 14, range: 40, atkCd: 0.46, arc: 85, atkType: 'melee',
+    special: 'Clone Corps', specialKey: 'phantomArmy', specialCd: 11, specialRange: 200,
+    specialDesc: 'Summon three shadow clones that fight beside you.',
+  },
+  Stellaris: {
+    name: 'Stellaris', rarity: 'mythic', body: '#ff7ba0', trim: '#ffe0ea',
+    hp: 105, speed: 160, dmg: 14, range: 220, atkCd: 0.52, arc: 18, atkType: 'ranged',
+    special: 'Star Rain', specialKey: 'starfall', specialCd: 9, specialRange: 320,
+    specialDesc: 'Rain five meteors across the arena, one near every rival.',
+  },
+  Warden: {
+    name: 'Warden', rarity: 'mythic', body: '#e8e0b8', trim: '#fffbe8',
+    hp: 135, speed: 140, dmg: 16, range: 42, atkCd: 0.58, arc: 85, atkType: 'melee',
+    special: 'Aegis Field', specialKey: 'guardianAura', specialCd: 11, specialRange: 140,
+    specialDesc: 'Heal yourself and nearby allies, and become briefly invulnerable.',
+  },
+  Grimheart: {
+    name: 'Grimheart', rarity: 'mythic', body: '#6a4f7b', trim: '#d0b8e8',
+    hp: 105, speed: 175, dmg: 15, range: 40, atkCd: 0.5, arc: 85, atkType: 'melee',
+    special: 'Life Harvest', specialKey: 'soulHarvest', specialCd: 8, specialRange: 190,
+    specialDesc: 'Dash through rivals, healing yourself for each one you hit.',
+  },
+};
+
+/* ---------- save ---------- */
+const SAVE_KEY = 'arena-brawl-save-v1';
+let save = { unlocked: ['Roi'], wins: 0, mute: false, autoShoot: true, levels: {} };
+function loadSave(){
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && Array.isArray(s.unlocked) && s.unlocked.includes('Roi')){
+      const mapped = s.unlocked.map(id => (id === 'Yosane' ? 'Yuosane' : id));
+      save = {
+        unlocked: mapped.filter(id => CHARS[id]),
+        wins: s.wins | 0,
+        mute: !!s.mute,
+        autoShoot: s.autoShoot !== false,
+        levels: (s.levels && typeof s.levels === 'object') ? s.levels : {},
+      };
+    }
+  } catch(e){}
+}
+function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
+function levelOf(id){ return save.levels[id] || 1; }
+function levelMult(id){ return 1 + (levelOf(id) - 1) * 0.08; }
+
+/* ---------- state ---------- */
+let uiScreen = 'menu';           // menu | select | roster | fight | over | paused
+let battleMode = null;           // duel | brawl
+let selectedId = null;
+let lastFight = { mode: null, p1: 'Roi' };
+let fighters = [], projectiles = [], particles = [], rings = [], dmgNums = [];
+let beams = [], bolts = [], zones = [];
+let introT = 0, banner2Shown = false, pendingEnd = null;
+let shake = { t: 0, mag: 0 };
+let time = 0, last = 0;
+
+const cv = document.getElementById('cv');
+let ctx = null, dpr = 1;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const touchCapable = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const $ = id => document.getElementById(id);
+const hudEl = $('hud'), bannerEl = $('banner'), flashEl = $('flash');
+const screens = [$('scrMenu'), $('scrSelect'), $('scrRoster'), $('scrResult'), $('scrPause')];
+const keys = {};
+const touchJoy = { p1: { mx: 0, my: 0 } };
+const touchEl = $('touch');
+
+function setupCanvas(){
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const rect = cv.getBoundingClientRect();
+  cv.width = Math.max(2, Math.round(rect.width * dpr));
+  cv.height = Math.max(2, Math.round(rect.height * dpr));
+  ctx = cv.getContext('2d');
+}
+
+/* ---------- floor (pre-rendered) ---------- */
+const floorCanvas = document.createElement('canvas');
+floorCanvas.width = W; floorCanvas.height = H;
+function buildFloor(){
+  const s = cv.width / W;   // rasterize the floor at display resolution
+  floorCanvas.width = cv.width; floorCanvas.height = cv.height;
+  const c = floorCanvas.getContext('2d');
+  c.setTransform(s, 0, 0, s, 0, 0);
+  c.fillStyle = '#0e1424'; c.fillRect(0, 0, W, H);
+  // tiles
+  const t = 45;
+  for (let y = 0; y < H; y += t)
+    for (let x = 0; x < W; x += t)
+      if (((x / t) + (y / t)) % 2 === 0){ c.fillStyle = '#111830'; c.fillRect(x, y, t, t); }
+  // speckles
+  for (let i = 0; i < 150; i++){
+    c.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(94,162,255,0.05)';
+    c.fillRect(rand(20, W - 20), rand(20, H - 20), 2, 2);
+  }
+  // center ring
+  c.strokeStyle = 'rgba(43, 55, 88, 0.5)'; c.lineWidth = 2; c.setLineDash([10, 12]);
+  c.beginPath(); c.arc(W / 2, H / 2, 130, 0, TAU); c.stroke(); c.setLineDash([]);
+  // walls
+  c.strokeStyle = '#2b3758'; c.lineWidth = 8;
+  c.strokeRect(14, 14, W - 28, H - 28);
+  c.strokeStyle = '#1c2440'; c.lineWidth = 2;
+  c.strokeRect(20, 20, W - 40, H - 40);
+  // corner glints
+  c.strokeStyle = 'rgba(255, 215, 106, 0.35)'; c.lineWidth = 3;
+  [[20, 20], [W - 20, 20], [20, H - 20], [W - 20, H - 20]].forEach(([px, py]) => {
+    c.beginPath(); c.arc(px, py, 7, 0, TAU); c.stroke();
+  });
+  // pillars
+  for (const p of PILLARS){
+    c.fillStyle = 'rgba(0,0,0,0.45)';
+    c.beginPath(); c.ellipse(p.x + 4, p.y + 6, p.r, p.r * 0.9, 0, 0, TAU); c.fill();
+    const g = c.createRadialGradient(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.15, p.x, p.y, p.r);
+    g.addColorStop(0, '#333f66'); g.addColorStop(1, '#1a2340');
+    c.fillStyle = g;
+    c.beginPath(); c.arc(p.x, p.y, p.r, 0, TAU); c.fill();
+    c.strokeStyle = '#3d4c78'; c.lineWidth = 2;
+    c.beginPath(); c.arc(p.x, p.y, p.r - 1, 0, TAU); c.stroke();
+    c.fillStyle = '#46557f';
+    c.beginPath(); c.arc(p.x - p.r * 0.3, p.y - p.r * 0.3, 3.5, 0, TAU); c.fill();
+  }
+}
+
+/* ---------- entities ---------- */
+function makeFighter(id, x, y, team, isPlayer){
+  const c = CHARS[id];
+  return {
+    id, c, team, isPlayer,
+    x, y, r: 14,
+    fx: 1, fy: 0,
+    hp: c.hp, maxHp: c.hp,
+    atkTimer: 0, spTimer: 0, stun: 0, iframes: 0, hurtFlash: 0,
+    swingT: 0, swingDir: 0,
+    burn: null, slow: null, empT: 0, empMult: 1, yoyo: null, leap: null, gustA: 0, gustT: 0,
+    lvlMult: 1, lvl: 1, lives: c.lives || 1, spIdx: 0,
+    dashT: 0, dashHit: new Map(), dashDmg: 30, dashSpeed: 560, dashHits: 1, stripeTick: 0,
+    kbx: 0, kby: 0,
+    dmgMult: 1,
+    deathT: 0, dead: false,
+    foes: [],
+    seed: rand(0, 100),
+    ai: { aggro: true, aggroT: 8, wanderT: 0, wx: null, wy: null },
+  };
+}
+
+function diff(){ return 1 + Math.min(save.wins * 0.06, 0.9); }
+
+function pickEnemyChar(used){
+  const opts = CHAR_ORDER.filter(id => !used.has(id));
+  let total = 0;
+  const ws = opts.map(id => {
+    const c = CHARS[id];
+    const adj = { common: 0, uncommon: 0.4, rare: 0.5, epic: 0.7, legendary: 0.9, mythic: 1.1, godlike: 1.3 }[c.rarity] * save.wins;
+    const w = UNLOCK_WEIGHTS[id] * (1 + adj);
+    total += w; return w;
+  });
+  let r = Math.random() * total;
+  for (let i = 0; i < opts.length; i++){ r -= ws[i]; if (r <= 0) return opts[i]; }
+  return opts[0];
+}
+
+function startBattle(mode, p1Id, p2Id){
+  fighters = []; projectiles = []; particles = []; rings = []; dmgNums = [];
+  beams = []; bolts = []; zones = [];
+  shake = { t: 0, mag: 0 }; pendingEnd = null;
+  battleMode = mode;
+  const applyLevel = (f, id) => {
+    const lm = levelMult(id);
+    f.lvl = levelOf(id);
+    f.lvlMult = lm;
+    f.hp = Math.round(f.hp * lm); f.maxHp = f.hp;
+  };
+  const p1 = makeFighter(p1Id, 220, 310, 'a', true); p1.fx = 1;
+  applyLevel(p1, p1Id);
+  fighters.push(p1);
+  const n = mode === 'brawl' ? 3 : 1;
+  const spawns = mode === 'brawl' ? [[230, 180], [680, 180], [450, 540]] : [[680, 310]];
+  const used = new Set();
+  for (let i = 0; i < n; i++){
+    const id = pickEnemyChar(used); used.add(id);
+    const e = makeFighter(id, spawns[i][0], spawns[i][1], mode === 'brawl' ? 'e' + i : 'b', false);
+    e.fx = -1;
+    const hpScale = mode === 'brawl'
+      ? 0.9 * (1 + Math.min(save.wins * 0.04, 0.55))
+      : 1.15 + Math.min(save.wins * 0.05, 0.65);
+    const dmgScale = mode === 'brawl'
+      ? 0.85 * (1 + Math.min(save.wins * 0.02, 0.25))
+      : 1.1 + Math.min(save.wins * 0.02, 0.3);
+    e.dmgMult = dmgScale;
+    e.hp = Math.round(e.hp * hpScale); e.maxHp = e.hp;
+    fighters.push(e);
+  }
+  // free-for-all: every fighter fights everyone not on their team (NPCs included)
+  for (const f of fighters) f.foes = fighters.filter(o => o.team !== f.team);
+  introT = 1.5; banner2Shown = false;
+  for (const f of fighters) f.stun = 1.5;
+  uiScreen = 'fight';
+  screens.forEach(s => s.hidden = true);
+  hudEl.hidden = false;
+  updateHint();
+  updateTouchUI();
+  updateHUD();
+  showBanner(mode === 'brawl' ? 'BRAWL' : 'DUEL', 1.4);
+  lastFight = { mode, p1: p1Id };
+  AudioFX.click();
+}
+
+function showBanner(text, dur){
+  bannerEl.textContent = text;
+  bannerEl.classList.remove('show');
+  void bannerEl.offsetWidth;
+  bannerEl.classList.add('show');
+}
+
+function flashScreen(){
+  flashEl.classList.remove('show');
+  void flashEl.offsetWidth;
+  flashEl.classList.add('show');
+}
+
+/* ---------- movement & timers ---------- */
+function moveEntity(f, dt, mx, my){
+  const aiMult = f.isPlayer ? 1 : diff();
+  const slowM = f.slow && f.slow.t > 0 ? f.slow.mult : 1;
+  const sp = f.c.speed * slowM * aiMult;
+  let vx = mx * sp, vy = my * sp;
+  if (f.leap){
+    const ldx = f.leap.tx - f.x, ldy = f.leap.ty - f.y;
+    const ld = Math.hypot(ldx, ldy);
+    if (ld > 10){
+      vx = ldx / ld * (f.dashSpeed || 560); vy = ldy / ld * (f.dashSpeed || 560);
+      particles.push({ x: f.x + rand(-4, 4), y: f.y + rand(-4, 4), vx: 0, vy: 0, ttl: 0.3, maxT: 0.3, color: '#ffb25a', size: 8, kind: 'ghost' });
+    } else {
+      f.dashT = 0; vx = 0; vy = 0;
+    }
+  } else if (f.dashT > 0){ vx = f.fx * (f.dashSpeed || 560); vy = f.fy * (f.dashSpeed || 560); }
+  f.x += (vx + f.kbx) * dt;
+  f.y += (vy + f.kby) * dt;
+  f.kbx *= Math.exp(-8 * dt);
+  f.kby *= Math.exp(-8 * dt);
+  f.x = clamp(f.x, WALL + f.r, W - WALL - f.r);
+  f.y = clamp(f.y, WALL + f.r, H - WALL - f.r);
+  for (const pl of PILLARS){
+    const dx = f.x - pl.x, dy = f.y - pl.y, d = Math.hypot(dx, dy), min = pl.r + f.r;
+    if (d < min && d > 0.0001){ f.x = pl.x + dx / d * min; f.y = pl.y + dy / d * min; }
+  }
+}
+
+function updateTimers(f, dt){
+  f.atkTimer -= dt; f.spTimer -= dt; f.stun -= dt; f.iframes -= dt;
+  f.hurtFlash -= dt; f.swingT -= dt;
+  if (f.slow){ f.slow.t -= dt; if (f.slow.t <= 0) f.slow = null; }
+  if (f.empT > 0) f.empT -= dt;
+  if (f.gustT > 0) f.gustT -= dt;
+  if (f.burn){
+    f.burn.t -= dt; f.burn.tick -= dt;
+    if (f.burn.tick <= 0){
+      f.burn.tick = 0.4;
+      applyDamage(f, f.burn.dmg, null, { burn: true, color: '#ff7a4d' });
+    }
+    if (f.burn.t <= 0) f.burn = null;
+  }
+}
+
+/* ---------- combat ---------- */
+function inArc(f, t, range, arcDeg){
+  const d = dist(f, t);
+  if (d > range) return false;
+  const a = Math.atan2(t.y - f.y, t.x - f.x);
+  return Math.abs(angleDiff(a, Math.atan2(f.fy, f.fx))) <= arcDeg / 2 * Math.PI / 180;
+}
+
+function tryMelee(f){
+  if (f.atkTimer > 0 || f.stun > 0 || f.dashT > 0) return;
+  let foe = null;
+  for (const t of f.foes){ if (!t.dead && inArc(f, t, f.c.range, f.c.arc)){ foe = t; break; } }
+  if (!foe) return;
+  const dmg = f.c.dmg * (f.empT > 0 ? f.empMult : 1) * (f.isPlayer ? f.lvlMult : f.dmgMult);
+  if (f.empT > 0) f.empT = 0;
+  f.atkTimer = f.c.atkCd * (f.isPlayer ? 1 : 1 / diff());
+  f.swingT = 0.12; f.swingDir = Math.atan2(f.fy, f.fx);
+  AudioFX.swing();
+  applyDamage(foe, dmg, f, { kb: 150 });
+  if (f.c.name === 'Yuosane') foe.burn = { t: 1.5, tick: 0.4, dmg: 3 };
+}
+
+function tryRanged(f){
+  if (f.atkTimer > 0 || f.stun > 0 || f.dashT > 0) return;
+  let best = null, bd = Infinity;
+  for (const t of f.foes){
+    if (t.dead) continue;
+    const d = dist(f, t);
+    if (d < f.c.range && d < bd){ bd = d; best = t; }
+  }
+  if (!best) return;
+  const ang = Math.atan2(best.y - f.y, best.x - f.x);
+  f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+  f.atkTimer = f.c.atkCd * (f.isPlayer ? 1 : 1 / diff());
+  spawnProj(f, f.x + f.fx * (f.r + 6), f.y + f.fy * (f.r + 6), ang, f.c.name === 'Fay' ? 'bolt' : 'arrow');
+}
+
+function nearestFoe(f){
+  let best = null, bd = Infinity;
+  for (const t of f.foes){ if (!t.dead && dist(f, t) < bd){ bd = dist(f, t); best = t; } }
+  return best;
+}
+
+function applyDamage(t, amount, src, opts = {}){
+  if (t.dead) return;
+  if (!opts.burn && t.iframes > 0) return;
+  if (!opts.burn) t.hurtFlash = 0.12;
+  t.hp = Math.max(0, t.hp - amount);
+  dmgNums.push({ x: t.x + rand(-7, 7), y: t.y - t.r - 8, v: Math.round(amount), ttl: 0.7, color: opts.color || '#ffffff', big: amount >= 20 });
+  if (!opts.burn){
+    AudioFX.hit();
+    if (src){
+      const a = Math.atan2(t.y - src.y, t.x - src.x);
+      const kb = opts.kb || 140;
+      t.kbx += Math.cos(a) * kb; t.kby += Math.sin(a) * kb;
+    }
+    sparks(t.x, t.y, '#ffe9a8', 5);
+    sparks(t.x, t.y, t.c.body, 3);
+  }
+  if (t.hp <= 0) killFighter(t, src);
+}
+
+function killFighter(f){
+  // extra lives: revive at full health instead of dying
+  if (f.lives > 1){
+    f.lives--;
+    f.dead = false;
+    f.hp = f.maxHp;
+    f.stun = 0; f.burn = null; f.slow = null;
+    f.iframes = Math.max(f.iframes, 1.5);
+    rings.push({ x: f.x, y: f.y, r0: 20, r1: 90, ttl: 0.4, t: 0, color: '#ffffff', lw: 7 });
+    burst(f.x, f.y, '#ffffff', 20);
+    burst(f.x, f.y, '#ffd76a', 10);
+    if (!reducedMotion) shake = { t: 0.3, mag: 0.4 };
+    AudioFX.unlock();
+    return;
+  }
+  f.dead = true; f.deathT = 0.55;
+  burst(f.x, f.y, f.c.body, 14);
+  burst(f.x, f.y, '#ffffff', 6);
+  if (!reducedMotion) shake = { t: 0.25, mag: 0.3 };
+  if (!pendingEnd){
+    const playerAlive = fighters.some(x => x.team === 'a' && !x.dead);
+    const rivalsAlive = fighters.some(x => x.team !== 'a' && !x.dead);
+    if (!playerAlive) pendingEnd = { won: false, t: 0.9 };
+    else if (!rivalsAlive) pendingEnd = { won: true, t: 0.9 };
+  }
+}
+
+/* ---------- projectiles ---------- */
+function spawnProj(owner, x, y, ang, kind, dmgOverride, crit){
+  const spd = kind === 'arrow' ? 430 : kind === 'bolt' ? 480 : kind === 'coconut' ? 330 : kind === 'coin' ? 380
+    : kind === 'boomerang' ? 420 : kind === 'wave' ? 300 : kind === 'bomb' ? 260 : kind === 'seed' ? 460 : kind === 'goo' ? 260
+    : kind === 'boulder' ? 340 : kind === 'aurora' ? 400 : kind === 'bat' ? 320 : kind === 'spear' ? 560 : 310;
+  const dmg = dmgOverride !== undefined ? dmgOverride : owner.c.dmg * (owner.isPlayer ? (owner.lvlMult || 1) : (owner.dmgMult || 1));
+  projectiles.push({
+    x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang,
+    r: kind === 'fire' ? 7 : kind === 'coconut' ? 8 : kind === 'coin' ? 6 : kind === 'wave' ? 15 : kind === 'bomb' ? 7 : kind === 'boomerang' ? 9 : kind === 'seed' ? 4 : kind === 'goo' ? 6 : kind === 'boulder' ? 10 : kind === 'aurora' ? 6 : kind === 'bat' ? 5 : kind === 'spear' ? 5 : 5,
+    dmg, kind, team: owner.team, owner, crit: !!crit,
+    bounces: kind === 'coconut' ? 1 : 0,
+    hitSet: kind === 'wave' || kind === 'boomerang' || kind === 'boulder' || kind === 'spear' ? new Set() : null,
+    retT: kind === 'boomerang' ? 0.45 : 0,
+    fuse: kind === 'bomb' ? 0.9 : 0,
+    ttl: kind === 'fire' ? 1.5 : kind === 'coconut' ? 1.7 : kind === 'boomerang' ? 1.8 : kind === 'bomb' ? 1.2 : kind === 'wave' ? 1.2 : 1.1,
+  });
+  if (kind !== 'fire' && kind !== 'coconut') AudioFX.shoot();
+}
+
+function gooLand(p, x, y){
+  zones.push({ x, y, t: 3, tick: 0.4, team: p.team, owner: p.owner, slow: true });
+  puffCloud(x, y, '#c86b9f', 8);
+}
+
+function explodeBomb(p){
+  const rad = p.radius || 60;
+  const meteor = p.kind === 'meteor';
+  rings.push({ x: p.x, y: p.y, r0: 8, r1: rad, ttl: 0.3, t: 0, color: meteor ? '#ffb25a' : '#ff7a9a', lw: 7 });
+  burst(p.x, p.y, meteor ? '#ffb25a' : '#ff7a9a', 16);
+  burst(p.x, p.y, '#ffe9a8', 6);
+  if (!reducedMotion) shake = { t: meteor ? 0.35 : 0.2, mag: meteor ? 0.4 : 0.25 };
+  for (const f of fighters){
+    if (f.dead || f.team === p.team || f.iframes > 0) continue;
+    if (Math.hypot(f.x - p.x, f.y - p.y) < rad){
+      applyDamage(f, p.dmg, p.owner, { kb: meteor ? 200 : 220 });
+      if (meteor) f.stun = Math.max(f.stun, p.stun || 0.8);
+    }
+  }
+}
+
+function updateProjectiles(dt){
+  for (const p of projectiles){
+    p.x += p.vx * dt; p.y += p.vy * dt; p.ttl -= dt;
+    if (p.ttl <= 0){
+      if (p.kind === 'bomb' || p.kind === 'meteor') explodeBomb(p);
+      if (p.kind === 'goo') gooLand(p, p.x, p.y);
+      p.dead = true; continue;
+    }
+    // boomerang: fly out, then return to the thrower
+    if (p.kind === 'boomerang'){
+      p.retT -= dt;
+      if (p.retT <= 0 && p.owner && !p.owner.dead){
+        const a = Math.atan2(p.owner.y - p.y, p.owner.x - p.x);
+        p.vx = Math.cos(a) * 420; p.vy = Math.sin(a) * 420;
+        p.angle = a;
+        if (Math.hypot(p.owner.x - p.x, p.owner.y - p.y) < 16){ p.dead = true; continue; }
+      }
+    }
+    // bats: home in on the nearest rival
+    if (p.kind === 'bat'){
+      let best = null, bd = Infinity;
+      for (const f of fighters){
+        if (f.dead || f.team === p.team || f.iframes > 0) continue;
+        const d = Math.hypot(f.x - p.x, f.y - p.y);
+        if (d < bd){ bd = d; best = f; }
+      }
+      if (best){
+        const want = Math.atan2(best.y - p.y, best.x - p.x);
+        const cur = Math.atan2(p.vy, p.vx);
+        let diff = want - cur;
+        while (diff > Math.PI) diff -= TAU;
+        while (diff < -Math.PI) diff += TAU;
+        const turn = clamp(diff, -3.2 * dt, 3.2 * dt);
+        const a = cur + turn;
+        const spd = Math.hypot(p.vx, p.vy);
+        p.vx = Math.cos(a) * spd; p.vy = Math.sin(a) * spd;
+        p.angle = a;
+      }
+    }
+    // bomb fuse
+    if (p.kind === 'bomb' || p.kind === 'meteor'){
+      p.fuse -= dt;
+      if (p.fuse <= 0){ explodeBomb(p); p.dead = true; continue; }
+    }
+    const ghost = p.kind === 'boomerang';
+    if (!ghost){
+      // walls (coconuts bounce once, bombs detonate)
+      if (p.x < WALL + 4 || p.x > W - WALL - 4 || p.y < WALL + 4 || p.y > H - WALL - 4){
+        if (p.kind === 'bomb' || p.kind === 'meteor'){ explodeBomb(p); p.dead = true; continue; }
+        if (p.kind === 'goo'){ gooLand(p, p.x, p.y); p.dead = true; continue; }
+        if (p.kind === 'coconut' && p.bounces > 0){
+          p.bounces--;
+          if (p.x < WALL + 4 || p.x > W - WALL - 4) p.vx = -p.vx; else p.vy = -p.vy;
+          p.angle = Math.atan2(p.vy, p.vx);
+          p.x = clamp(p.x, WALL + 4, W - WALL - 4);
+          p.y = clamp(p.y, WALL + 4, H - WALL - 4);
+          continue;
+        }
+        puff(p.x, p.y, '#8f9ab8'); p.dead = true; continue;
+      }
+      // pillars (coconuts reflect once, bombs detonate)
+      let blocked = false;
+      for (const pl of PILLARS){
+        if (Math.hypot(p.x - pl.x, p.y - pl.y) < pl.r + p.r){
+          if (p.kind === 'bomb' || p.kind === 'meteor'){ explodeBomb(p); p.dead = true; break; }
+          if (p.kind === 'goo'){ gooLand(p, pl.x, pl.y); p.dead = true; break; }
+          if (p.kind === 'coconut' && p.bounces > 0){
+            p.bounces--;
+            const d = Math.hypot(p.x - pl.x, p.y - pl.y) || 1;
+            const nx = (p.x - pl.x) / d, ny = (p.y - pl.y) / d;
+            const dot = p.vx * nx + p.vy * ny;
+            p.vx -= 2 * dot * nx; p.vy -= 2 * dot * ny;
+            p.angle = Math.atan2(p.vy, p.vx);
+          } else { blocked = true; }
+          break;
+        }
+      }
+      if (p.dead) continue;
+      if (blocked){ puff(p.x, p.y, '#8f9ab8'); p.dead = true; continue; }
+    }
+    // fighters
+    for (const f of fighters){
+      if (f.dead || f.team === p.team || f.iframes > 0) continue;
+      if (Math.hypot(p.x - f.x, p.y - f.y) < f.r + p.r){
+        if (p.kind === 'bomb' || p.kind === 'meteor'){ explodeBomb(p); p.dead = true; break; }
+        if (p.kind === 'goo'){ gooLand(p, f.x, f.y); p.dead = true; break; }
+        if (p.hitSet){
+          if (p.hitSet.has(f)) continue;
+          p.hitSet.add(f);
+          applyDamage(f, p.dmg, p.owner, { kb: p.kind === 'wave' ? 300 : 80 });
+          if (p.kind === 'wave') sparks(p.x, p.y, '#7cc4f0', 6);
+          continue;
+        }
+        applyDamage(f, p.dmg, p.owner, { kb: p.kind === 'coconut' ? 260 : 120 });
+        if (p.kind === 'fire') f.burn = { t: 1.5, tick: 0.4, dmg: 3 };
+        if (p.kind === 'fire' || p.kind === 'coconut') sparks(p.x, p.y, p.kind === 'fire' ? '#ff9a3d' : '#8a5a2b', 8);
+        p.dead = true; break;
+      }
+    }
+  }
+  projectiles = projectiles.filter(p => !p.dead);
+}
+
+/* ---------- specials ---------- */
+function boltFx(x, y){
+  bolts.push({ x, y, t: 0.3, ttl: 0.3 });
+}
+
+function castBeam(f, kind, range, dmg, opts = {}){
+  const t = nearestFoe(f);
+  const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+  f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+  const ex = f.x + f.fx * range, ey = f.y + f.fy * range;
+  beams.push({ x1: f.x, y1: f.y, x2: ex, y2: ey, t: 0.3, ttl: 0.3, kind });
+  for (const foe of f.foes){
+    if (foe.dead) continue;
+    const dx = ex - f.x, dy = ey - f.y;
+    const len2 = dx * dx + dy * dy || 1;
+    const tt = clamp(((foe.x - f.x) * dx + (foe.y - f.y) * dy) / len2, 0, 1);
+    if (Math.hypot(foe.x - (f.x + dx * tt), foe.y - (f.y + dy * tt)) < foe.r + 12){
+      applyDamage(foe, dmg * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 80 });
+      if (opts.slow) foe.slow = { t: 2.2, mult: 0.55 };
+      if (opts.burn) foe.burn = { t: 1.5, tick: 0.4, dmg: 3 };
+    }
+  }
+  if (opts.heal) f.hp = Math.min(f.maxHp, f.hp + opts.heal);
+  if (!reducedMotion) shake = { t: 0.18, mag: 0.2 };
+}
+
+function landLeap(f){
+  const tx = f.x, ty = f.y;
+  f.leap = null;
+  rings.push({ x: tx, y: ty, r0: 14, r1: 75, ttl: 0.3, t: 0, color: '#ffb25a', lw: 6 });
+  burst(tx, ty, '#ffb25a', 14);
+  if (!reducedMotion) shake = { t: 0.25, mag: 0.3 };
+  for (const foe of f.foes){
+    if (foe.dead || foe.iframes > 0) continue;
+    if (Math.hypot(foe.x - tx, foe.y - ty) < 75){
+      applyDamage(foe, 24 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 240 });
+      foe.stun = Math.max(foe.stun, 0.4);
+    }
+  }
+}
+
+const GODLIKE_SPECIALS = [
+  { name: 'Divine Smite', key: 'smite' },
+  { name: 'Celestial Barrage', key: 'barrage' },
+  { name: 'Prism Ray', key: 'prism' },
+  { name: 'Judgment', key: 'judgment' },
+  { name: 'Astral Rush', key: 'astralRush' },
+];
+
+function castGodlike(f){
+  if (f.spTimer > 0 || f.stun > 0 || f.dead || f.cloneOwner) return;
+  f.spTimer = f.c.specialCd;
+  AudioFX.special();
+  const s = GODLIKE_SPECIALS[f.spIdx % GODLIKE_SPECIALS.length];
+  f.spIdx = (f.spIdx + 1) % GODLIKE_SPECIALS.length;
+  if (s.key === 'smite'){
+    const t = nearestFoe(f);
+    if (t && dist(f, t) < 340){
+      boltFx(t.x, t.y);
+      applyDamage(t, 40 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 140, color: '#ffe98a' });
+      t.stun = Math.max(t.stun, 0.6);
+      if (!reducedMotion) shake = { t: 0.2, mag: 0.25 };
+    } else {
+      boltFx(f.x, f.y);
+    }
+  } else if (s.key === 'barrage'){
+    for (let i = 0; i < 12; i++){
+      const a = i * TAU / 12 + rand(-0.1, 0.1);
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'aurora', 10 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+    }
+    ring(f.x, f.y, 16, 44, '#ffffff', 5);
+  } else if (s.key === 'prism'){
+    castBeam(f, 'rainbow', 320, 30);
+  } else if (s.key === 'judgment'){
+    const t = nearestFoe(f);
+    const tx = t ? t.x : f.x + f.fx * 200;
+    const ty = t ? t.y : f.y + f.fy * 200;
+    const d = Math.hypot(tx - f.x, ty - f.y) || 1;
+    const spd = Math.min(700, d / 0.6);
+    const ang = Math.atan2(ty - f.y, tx - f.x);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    projectiles.push({ x: f.x + f.fx * 12, y: f.y + f.fy * 12, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang, r: 11, dmg: 40 * (f.isPlayer ? f.lvlMult : f.dmgMult), kind: 'meteor', team: f.team, owner: f, crit: false, bounces: 0, hitSet: null, retT: 0, fuse: 0.6, ttl: 1.4, radius: 100, stun: 0.8 });
+  } else {
+    f.dashHit = new Map(); f.dashT = 0.22; f.dashDmg = 22; f.dashSpeed = 680; f.dashHits = 1;
+    f.iframes = Math.max(f.iframes, 0.3);
+    ring(f.x, f.y, 16, 40, '#fff6e0', 4);
+  }
+}
+
+function castSpecial(f){
+  if (f.spTimer > 0 || f.stun > 0 || f.dead || f.cloneOwner) return;
+  if (f.c.specialKey === 'godlike'){ castGodlike(f); return; }
+  f.spTimer = f.c.specialCd;
+  AudioFX.special();
+  const k = f.c.specialKey;
+  if (k === 'coconut'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 8), f.y + f.fy * (f.r + 8), ang, 'coconut');
+  } else if (k === 'thunderstorm'){
+    const pts = [];
+    for (let i = 0; i < 3; i++){
+      const t = f.foes[i % Math.max(1, f.foes.length)];
+      const cx = t && !t.dead ? t.x : f.x;
+      const cy = t && !t.dead ? t.y : f.y;
+      pts.push({ x: clamp(cx + rand(-60, 60), WALL, W - WALL), y: clamp(cy + rand(-60, 60), WALL, H - WALL) });
+    }
+    for (const p of pts){
+      boltFx(p.x, p.y);
+      for (const foe of f.foes){
+        if (!foe.dead && Math.hypot(foe.x - p.x, foe.y - p.y) < 42){
+          applyDamage(foe, 14 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 100, color: '#ffe98a' });
+          foe.stun = Math.max(foe.stun, 0.4);
+        }
+      }
+    }
+  } else if (k === 'featherChop'){
+    f.dashHit = new Map(); f.dashT = 0.18; f.dashDmg = 26; f.dashSpeed = 640; f.dashHits = 1;
+    f.iframes = Math.max(f.iframes, 0.25);
+    ring(f.x, f.y, 16, 40, '#fff6e0', 4);
+  } else if (k === 'doubleKick'){
+    f.dashHit = new Map(); f.dashT = 0.22; f.dashDmg = 14; f.dashSpeed = 520; f.dashHits = 2;
+    f.iframes = Math.max(f.iframes, 0.2);
+    ring(f.x, f.y, 14, 34, '#ffffff', 4);
+  } else if (k === 'lightning'){
+    const t = nearestFoe(f);
+    if (t && dist(f, t) < 320){
+      boltFx(t.x, t.y);
+      applyDamage(t, 30 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 140, color: '#ffe98a' });
+      t.stun = Math.max(t.stun, 0.6);
+      if (!reducedMotion) shake = { t: 0.2, mag: 0.25 };
+    } else {
+      boltFx(f.x, f.y);
+    }
+  } else if (k === 'luckyThrow'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    const crit = Math.random() < 0.15;
+    const dmg = rand(10, 40) * (crit ? 3 : 1) * (f.isPlayer ? f.lvlMult : f.dmgMult);
+    spawnProj(f, f.x + f.fx * (f.r + 8), f.y + f.fy * (f.r + 8), ang, 'coin', dmg, crit);
+  } else if (k === 'rainbowRay'){
+    castBeam(f, 'rainbow', 260, 22);
+  } else if (k === 'sunshineRay'){
+    castBeam(f, 'sunshine', 250, 18, { heal: 20 });
+  } else if (k === 'darknessRay'){
+    castBeam(f, 'darkness', 250, 16, { slow: true });
+  } else if (k === 'stripeKill'){
+    f.dashHit = new Map(); f.dashT = 0.25; f.dashDmg = 20; f.dashSpeed = 600; f.dashHits = 1;
+    f.stripeTick = 0;
+    f.iframes = Math.max(f.iframes, 0.2);
+    if (!reducedMotion) shake = { t: 0.2, mag: 0.2 };
+  } else if (k === 'moonlightBlade'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 8), f.y + f.fy * (f.r + 8), ang, 'boomerang', Math.round(f.c.dmg * 1.4));
+  } else if (k === 'tigerPounce'){
+    const t = nearestFoe(f);
+    let tx, ty;
+    if (t && dist(f, t) < 260){ tx = t.x; ty = t.y; }
+    else { tx = clamp(f.x + f.fx * 170, WALL + f.r, W - WALL - f.r); ty = clamp(f.y + f.fy * 170, WALL + f.r, H - WALL - f.r); }
+    f.dashHit = new Map(); f.dashDmg = 14; f.dashHits = 1;
+    f.dashSpeed = Math.hypot(tx - f.x, ty - f.y) / 0.32;
+    f.dashT = 0.32;
+    f.leap = { tx, ty };
+    f.iframes = Math.max(f.iframes, 0.3);
+  } else if (k === 'tidalWave'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 16), f.y + f.fy * (f.r + 16), ang, 'wave', f.c.dmg);
+  } else if (k === 'soulDrain'){
+    ring(f.x, f.y, 16, 110, '#c98bd8', 5);
+    let hit = 0;
+    for (const foe of f.foes){
+      if (foe.dead || foe.iframes > 0) continue;
+      if (dist(f, foe) < 110){
+        applyDamage(foe, 18 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 60, color: '#c98bd8' });
+        hit++;
+      }
+    }
+    f.hp = Math.min(f.maxHp, f.hp + hit * 12);
+    burst(f.x, f.y, '#c98bd8', 10);
+  } else if (k === 'errorGlitch'){
+    const t = nearestFoe(f);
+    if (t && dist(f, t) < 240){
+      const a = rand(0, TAU);
+      f.x = clamp(t.x + Math.cos(a) * 34, WALL + f.r, W - WALL - f.r);
+      f.y = clamp(t.y + Math.sin(a) * 34, WALL + f.r, H - WALL - f.r);
+      const ang = Math.atan2(t.y - f.y, t.x - f.x);
+      f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+      f.empT = 2; f.empMult = 1.6;
+      f.iframes = Math.max(f.iframes, 0.3);
+      puffCloud(f.x, f.y, '#46c8e0', 10);
+    } else {
+      puffCloud(f.x, f.y, '#46c8e0', 6);
+    }
+  } else if (k === 'yoyoSwing'){
+    f.yoyo = { t: 3, tick: 0.4 };
+    ring(f.x, f.y, 16, 55, '#ff8a5a', 4);
+  } else if (k === 'cherryBomb'){
+    const t = nearestFoe(f);
+    const tx = t ? t.x : f.x + f.fx * 170;
+    const ty = t ? t.y : f.y + f.fy * 170;
+    const ang = Math.atan2(ty - f.y, tx - f.x);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 8), f.y + f.fy * (f.r + 8), ang, 'bomb', 26 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+  } else if (k === 'fanGust'){
+    const t = nearestFoe(f);
+    const a = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(a); f.fy = Math.sin(a);
+    f.gustA = a; f.gustT = 0.25;
+    for (const foe of f.foes){
+      if (foe.dead || foe.iframes > 0) continue;
+      const d = dist(f, foe);
+      const ang = Math.atan2(foe.y - f.y, foe.x - f.x);
+      if (d < 150 && Math.abs(angleDiff(ang, a)) < 55 * Math.PI / 180){
+        applyDamage(foe, 12 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 380 });
+      }
+    }
+    if (!reducedMotion) shake = { t: 0.15, mag: 0.15 };
+  } else if (k === 'seedSpit'){
+    const t = nearestFoe(f);
+    const base = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(base); f.fy = Math.sin(base);
+    for (let i = 0; i < 4; i++){
+      const a = base + (i - 1.5) * 0.12 + rand(-0.04, 0.04);
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 6), f.y + Math.sin(a) * (f.r + 6), a, 'seed', f.c.dmg * 0.9);
+    }
+  } else if (k === 'stickyGoo'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 8), f.y + f.fy * (f.r + 8), ang, 'goo');
+  } else if (k === 'tempest'){
+    ring(f.x, f.y, 16, 130, '#7fd8c8', 6);
+    for (const foe of f.foes){
+      if (foe.dead || foe.iframes > 0) continue;
+      if (dist(f, foe) < 130){
+        applyDamage(foe, 20 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 420 });
+        foe.stun = Math.max(foe.stun, 0.5);
+      }
+    }
+    if (!reducedMotion) shake = { t: 0.3, mag: 0.35 };
+  } else if (k === 'inferno'){
+    ring(f.x, f.y, 16, 44, '#ff9a3d', 5);
+    for (let i = 0; i < 10; i++){
+      const a = i * TAU / 10 + 0.15;
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'fire');
+    }
+  } else if (k === 'solarBeam'){
+    castBeam(f, 'solar', 320, 30);
+  } else if (k === 'timeFreeze'){
+    ring(f.x, f.y, 20, 200, '#b9aee8', 5);
+    for (const foe of f.foes){
+      if (!foe.dead) foe.slow = { t: 3, mult: 0.4 };
+    }
+    if (!reducedMotion) shake = { t: 0.2, mag: 0.2 };
+  } else if (k === 'chainLightning'){
+    const hit = [];
+    let cur = nearestFoe(f);
+    let dmg = 26;
+    let safety = 0;
+    while (cur && safety < 3){
+      hit.push(cur);
+      boltFx(cur.x, cur.y);
+      applyDamage(cur, dmg * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 100, color: '#ffe98a' });
+      cur.stun = Math.max(cur.stun, 0.4);
+      dmg *= 0.7; safety++;
+      let next = null, bd = Infinity;
+      for (const foe of f.foes){
+        if (foe.dead || hit.includes(foe)) continue;
+        const d = dist(cur, foe);
+        if (d < 260 && d < bd){ bd = d; next = foe; }
+      }
+      cur = next;
+    }
+    if (!reducedMotion) shake = { t: 0.2, mag: 0.25 };
+  } else if (k === 'avalanche'){
+    const t = nearestFoe(f);
+    const base = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(base); f.fy = Math.sin(base);
+    for (let i = -1; i <= 1; i++){
+      const a = base + i * 0.16;
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 12), f.y + Math.sin(a) * (f.r + 12), a, 'boulder', 16 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+    }
+  } else if (k === 'venomCloud'){
+    for (let i = 0; i < 3; i++){
+      const a = rand(0, TAU);
+      const d = rand(30, 80);
+      const zx = clamp(f.x + Math.cos(a) * d, WALL, W - WALL);
+      const zy = clamp(f.y + Math.sin(a) * d, WALL, H - WALL);
+      zones.push({ x: zx, y: zy, t: 2.5, tick: 0.4, team: f.team, owner: f });
+      puffCloud(zx, zy, '#5cbf7f', 6);
+    }
+    ring(f.x, f.y, 14, 40, '#5cbf7f', 4);
+  } else if (k === 'doppelganger'){
+    spawnClone(f);
+  } else if (k === 'meteor'){
+    const t = nearestFoe(f);
+    const tx = t ? t.x : f.x + f.fx * 200;
+    const ty = t ? t.y : f.y + f.fy * 200;
+    const d = Math.hypot(tx - f.x, ty - f.y) || 1;
+    const spd = Math.min(700, d / 0.6);
+    const ang = Math.atan2(ty - f.y, tx - f.x);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    projectiles.push({
+      x: f.x + f.fx * 12, y: f.y + f.fy * 12,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang,
+      r: 10, dmg: 40 * (f.isPlayer ? f.lvlMult : f.dmgMult), kind: 'meteor',
+      team: f.team, owner: f, crit: false,
+      bounces: 0, hitSet: null, retT: 0, fuse: 0.6, ttl: 1.4, radius: 90, stun: 0.8,
+    });
+  } else if (k === 'auroraBurst'){
+    for (let i = 0; i < 12; i++){
+      const a = i * TAU / 12 + rand(-0.1, 0.1);
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'aurora', 8 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+    }
+    ring(f.x, f.y, 16, 42, '#c05cff', 5);
+  } else if (k === 'thunderGod'){
+    for (let i = 0; i < 5; i++){
+      const foe = f.foes[i % Math.max(1, f.foes.length)];
+      const px = clamp((foe && !foe.dead ? foe.x : f.x) + rand(-50, 50), WALL, W - WALL);
+      const py = clamp((foe && !foe.dead ? foe.y : f.y) + rand(-50, 50), WALL, H - WALL);
+      boltFx(px, py);
+      for (const t of f.foes){
+        if (!t.dead && Math.hypot(t.x - px, t.y - py) < 42){
+          applyDamage(t, 12 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 90, color: '#ffe98a' });
+          t.stun = Math.max(t.stun, 0.3);
+        }
+      }
+    }
+    if (!reducedMotion) shake = { t: 0.25, mag: 0.3 };
+  } else if (k === 'blizzard'){
+    ring(f.x, f.y, 18, 140, '#bfe8ff', 6);
+    for (const foe of f.foes){
+      if (foe.dead || foe.iframes > 0) continue;
+      if (dist(f, foe) < 140){
+        applyDamage(foe, 18 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 60, color: '#bfe8ff' });
+        foe.slow = { t: 3, mult: 0.5 };
+      }
+    }
+  } else if (k === 'gravityWell'){
+    const t = nearestFoe(f);
+    const zx = clamp(t ? t.x : f.x + f.fx * 160, WALL + 16, W - WALL - 16);
+    const zy = clamp(t ? t.y : f.y + f.fy * 160, WALL + 16, H - WALL - 16);
+    zones.push({ x: zx, y: zy, t: 3.5, tick: 0.4, team: f.team, owner: f, pull: true, dmg: 0 });
+    ring(zx, zy, 20, 90, '#c05cff', 5);
+  } else if (k === 'supernova'){
+    ring(f.x, f.y, 16, 50, '#ffb25a', 6);
+    for (let i = 0; i < 16; i++){
+      const a = i * TAU / 16 + 0.1;
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'fire');
+    }
+    if (!reducedMotion) shake = { t: 0.3, mag: 0.35 };
+  } else if (k === 'shadowRealm'){
+    const t = nearestFoe(f);
+    if (t && dist(f, t) < 280){
+      const a = Math.atan2(f.y - t.y, f.x - t.x);
+      f.x = clamp(t.x + Math.cos(a) * 34, WALL + f.r, W - WALL - f.r);
+      f.y = clamp(t.y + Math.sin(a) * 34, WALL + f.r, H - WALL - f.r);
+      const ang = Math.atan2(t.y - f.y, t.x - f.x);
+      f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+      f.empT = 2; f.empMult = 2.0;
+      f.iframes = Math.max(f.iframes, 0.35);
+      puffCloud(f.x, f.y, '#3d3a5c', 12);
+    } else {
+      puffCloud(f.x, f.y, '#3d3a5c', 6);
+    }
+  } else if (k === 'earthquake'){
+    ring(f.x, f.y, 20, 260, '#c8b088', 6);
+    for (const foe of f.foes){
+      if (!foe.dead){
+        applyDamage(foe, 15 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 160 });
+        foe.stun = Math.max(foe.stun, 0.6);
+      }
+    }
+    if (!reducedMotion) shake = { t: 0.4, mag: 0.5 };
+  } else if (k === 'meteorShower'){
+    const t = nearestFoe(f);
+    for (let i = 0; i < 3; i++){
+      const cx = (t ? t.x : f.x + f.fx * 180) + rand(-70, 70);
+      const cy = (t ? t.y : f.y + f.fy * 180) + rand(-70, 70);
+      const d = Math.hypot(cx - f.x, cy - f.y) || 1;
+      const spd = Math.min(700, d / 0.6);
+      const ang = Math.atan2(cy - f.y, cx - f.x);
+      projectiles.push({ x: f.x + Math.cos(ang) * 12, y: f.y + Math.sin(ang) * 12, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang, r: 9, dmg: 22 * (f.isPlayer ? f.lvlMult : f.dmgMult), kind: 'meteor', team: f.team, owner: f, crit: false, bounces: 0, hitSet: null, retT: 0, fuse: 0.5 + rand(0, 0.3), ttl: 1.6, radius: 70, stun: 0.5 });
+    }
+  } else if (k === 'batSwarm'){
+    const t = nearestFoe(f);
+    const base = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(base); f.fy = Math.sin(base);
+    for (let i = 0; i < 4; i++){
+      const a = base + (i - 1.5) * 0.3;
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'bat', 9 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+    }
+  } else if (k === 'tornado'){
+    const a = Math.atan2(f.fy, f.fx);
+    zones.push({
+      x: f.x + f.fx * 60, y: f.y + f.fy * 60,
+      vx: Math.cos(a) * 130, vy: Math.sin(a) * 130,
+      t: 2.6, tick: 0.3, rate: 0.3, team: f.team, owner: f,
+      pull: true, dmg: 10, rad: 26,
+    });
+  } else if (k === 'guardianAura'){
+    f.hp = Math.min(f.maxHp, f.hp + 30);
+    f.iframes = Math.max(f.iframes, 1.2);
+    ring(f.x, f.y, 18, 60, '#ffe9a8', 5);
+    for (const a of fighters){
+      if (!a.dead && a.team === f.team && a !== f && Math.hypot(a.x - f.x, a.y - f.y) < 120){
+        a.hp = Math.min(a.maxHp, a.hp + 20);
+      }
+    }
+  } else if (k === 'spearCharge'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 14), f.y + f.fy * (f.r + 14), ang, 'spear', 24 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+  } else if (k === 'arcaneStorm'){
+    for (let i = 0; i < 10; i++){
+      const a = i * TAU / 10 + rand(-0.1, 0.1);
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'aurora', 10 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+    }
+    ring(f.x, f.y, 16, 44, '#6b8ff0', 5);
+  } else if (k === 'mirrorImages'){
+    const c1 = spawnClone(f); if (c1) c1.cloneT = 4;
+    const c2 = spawnClone(f); if (c2){ c2.cloneT = 4; c2.x = clamp(f.x - 24, WALL + 20, W - WALL - 20); }
+    ring(f.x, f.y, 16, 40, '#c9c2e8', 5);
+  } else if (k === 'tidalCrush'){
+    const t = nearestFoe(f);
+    const base = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(base); f.fy = Math.sin(base);
+    for (let i = -1; i <= 1; i++){
+      const a = base + i * 0.25;
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 16), f.y + Math.sin(a) * (f.r + 16), a, 'wave', 14 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+    }
+  } else if (k === 'divineRay'){
+    castBeam(f, 'rainbow', 320, 32);
+  } else if (k === 'boulderRoll'){
+    const t = nearestFoe(f);
+    const ang = t ? Math.atan2(t.y - f.y, t.x - f.x) : Math.atan2(f.fy, f.fx);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    spawnProj(f, f.x + f.fx * (f.r + 12), f.y + f.fy * (f.r + 12), ang, 'boulder', 30 * (f.isPlayer ? f.lvlMult : f.dmgMult));
+  } else if (k === 'soulHarvest'){
+    f.dashHit = new Map(); f.dashT = 0.24; f.dashDmg = 18; f.dashSpeed = 620; f.dashHits = 1;
+    f.iframes = Math.max(f.iframes, 0.25);
+    ring(f.x, f.y, 16, 40, '#b9aee8', 4);
+  } else if (k === 'rebirth'){
+    f.hp = Math.min(f.maxHp, f.hp + Math.round(f.maxHp * 0.4));
+    ring(f.x, f.y, 18, 70, '#ff9a3d', 6);
+    for (let i = 0; i < 8; i++){
+      const a = i * TAU / 8;
+      spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'fire');
+    }
+  } else if (k === 'wildMagic'){
+    const roll = Math.floor(rand(0, 4));
+    if (roll === 0){
+      for (let i = 0; i < 10; i++){
+        const a = i * TAU / 10 + 0.15;
+        spawnProj(f, f.x + Math.cos(a) * (f.r + 10), f.y + Math.sin(a) * (f.r + 10), a, 'fire');
+      }
+    } else if (roll === 1){
+      castBeam(f, 'rainbow', 260, 26);
+    } else if (roll === 2){
+      const t = nearestFoe(f);
+      if (t && dist(f, t) < 320){
+        boltFx(t.x, t.y);
+        applyDamage(t, 36 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 140, color: '#ffe98a' });
+        t.stun = Math.max(t.stun, 0.5);
+      } else {
+        boltFx(f.x, f.y);
+      }
+    } else {
+      const t = nearestFoe(f);
+      const tx = (t ? t.x : f.x + f.fx * 200) + rand(-40, 40);
+      const ty = (t ? t.y : f.y + f.fy * 200) + rand(-40, 40);
+      const d = Math.hypot(tx - f.x, ty - f.y) || 1;
+      const spd = Math.min(700, d / 0.6);
+      const ang = Math.atan2(ty - f.y, tx - f.x);
+      projectiles.push({ x: f.x + Math.cos(ang) * 12, y: f.y + Math.sin(ang) * 12, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang, r: 10, dmg: 36 * (f.isPlayer ? f.lvlMult : f.dmgMult), kind: 'meteor', team: f.team, owner: f, crit: false, bounces: 0, hitSet: null, retT: 0, fuse: 0.6, ttl: 1.4, radius: 80, stun: 0.6 });
+    }
+  } else if (k === 'voidRift'){
+    const t = nearestFoe(f);
+    const tx = t ? t.x : f.x + f.fx * 200;
+    const ty = t ? t.y : f.y + f.fy * 200;
+    const d = Math.hypot(tx - f.x, ty - f.y) || 1;
+    const spd = Math.min(700, d / 0.8);
+    const ang = Math.atan2(ty - f.y, tx - f.x);
+    f.fx = Math.cos(ang); f.fy = Math.sin(ang);
+    projectiles.push({ x: f.x + f.fx * 12, y: f.y + f.fy * 12, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang, r: 12, dmg: 45 * (f.isPlayer ? f.lvlMult : f.dmgMult), kind: 'meteor', team: f.team, owner: f, crit: false, bounces: 0, hitSet: null, retT: 0, fuse: 0.9, ttl: 1.8, radius: 130, stun: 1.0 });
+  } else if (k === 'starfall'){
+    for (let i = 0; i < 5; i++){
+      const foe = f.foes[i % Math.max(1, f.foes.length)];
+      const cx = clamp((foe && !foe.dead ? foe.x : f.x + f.fx * 160) + rand(-80, 80), WALL + 8, W - WALL - 8);
+      const cy = clamp((foe && !foe.dead ? foe.y : f.y + f.fy * 160) + rand(-80, 80), WALL + 8, H - WALL - 8);
+      const d = Math.hypot(cx - f.x, cy - f.y) || 1;
+      const spd = Math.min(700, d / 0.6);
+      const ang = Math.atan2(cy - f.y, cx - f.x);
+      projectiles.push({ x: f.x + Math.cos(ang) * 12, y: f.y + Math.sin(ang) * 12, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, angle: ang, r: 9, dmg: 18 * (f.isPlayer ? f.lvlMult : f.dmgMult), kind: 'meteor', team: f.team, owner: f, crit: false, bounces: 0, hitSet: null, retT: 0, fuse: 0.5 + rand(0, 0.35), ttl: 1.6, radius: 70, stun: 0.4 });
+    }
+  } else if (k === 'eventHorizon'){
+    zones.push({ x: f.x, y: f.y, t: 3, tick: 0.45, rate: 0.45, team: f.team, owner: f, pull: true, pullR: 200, dmg: 6, rad: 24, follow: true });
+    ring(f.x, f.y, 20, 200, '#b054d8', 6);
+  } else if (k === 'solarFlare'){
+    castBeam(f, 'solar', 380, 36, { burn: true });
+  } else if (k === 'phantomArmy'){
+    for (let i = 0; i < 3; i++){
+      const c = spawnClone(f);
+      if (c){
+        c.cloneT = 4;
+        c.x = clamp(f.x + rand(-40, 40), WALL + 20, W - WALL - 20);
+        c.y = clamp(f.y + rand(-40, 40), WALL + 20, H - WALL - 20);
+      }
+    }
+    ring(f.x, f.y, 16, 44, '#c9c2e8', 5);
+  } else if (k === 'chronoLock'){
+    ring(f.x, f.y, 20, 240, '#ff4d6d', 6);
+    for (const foe of f.foes){
+      if (!foe.dead){
+        applyDamage(foe, 10 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 40, color: '#ff4d6d' });
+        foe.slow = { t: 4, mult: 0.3 };
+      }
+    }
+    if (!reducedMotion) shake = { t: 0.25, mag: 0.3 };
+  }
+}
+
+function spawnClone(owner){
+  const c = makeFighter(owner.id, clamp(owner.x + 24, WALL + 20, W - WALL - 20), owner.y, owner.team, false);
+  c.hp = Math.round(owner.maxHp * 0.4); c.maxHp = c.hp;
+  c.dmgMult = 0.5 * (owner.lvlMult || 1);
+  c.lvlMult = owner.lvlMult || 1;
+  c.lvl = owner.lvl || 1;
+  c.cloneOwner = owner;
+  c.cloneT = 6;
+  c.foes = fighters.filter(o => o.team !== c.team && !o.dead);
+  for (const e of fighters) if (e.team !== c.team) e.foes.push(c);
+  fighters.push(c);
+  puffCloud(c.x, c.y, '#c9c2e8', 10);
+  return c;
+}
+
+/* ---------- AI ---------- */
+function wanderAI(f, dt){
+  f.ai.wanderT -= dt;
+  if (f.ai.wanderT <= 0 || f.ai.wx === null || Math.hypot(f.ai.wx - f.x, f.ai.wy - f.y) < 24){
+    f.ai.wx = rand(WALL + 50, W - WALL - 50);
+    f.ai.wy = rand(WALL + 50, H - WALL - 50);
+    f.ai.wanderT = rand(2, 4);
+  }
+  const dx = f.ai.wx - f.x, dy = f.ai.wy - f.y, d = Math.hypot(dx, dy) || 1;
+  f.fx = dx / d; f.fy = dy / d;
+  moveEntity(f, dt, dx / d * 0.6, dy / d * 0.6);
+}
+
+function updateAI(f, dt){
+  // free-for-all: chase the nearest foe — another NPC or the player
+  let target = null, bd = Infinity;
+  for (const t of f.foes){ if (!t.dead && dist(f, t) < bd){ bd = dist(f, t); target = t; } }
+  if (!target){ wanderAI(f, dt); return; }
+  const dx = target.x - f.x, dy = target.y - f.y;
+  const d = bd || 1;
+  const nx = dx / d, ny = dy / d;
+  f.ai.aggro = true; // NPCs always chase
+  f.fx = nx; f.fy = ny;
+  if (f.stun > 0){ moveEntity(f, dt, 0, 0); return; }
+  let mx = 0, my = 0;
+  if (f.ai.aggro){
+    mx = nx; my = ny;
+    const wob = Math.sin(time * 2.2 + f.seed * 7);
+    if (f.c.atkType === 'ranged'){
+      // keep closing in and shoot normal bullets; only ease off at point-blank
+      if (d < 90){
+        mx = -nx * 0.5 - ny * wob * 0.4; my = -ny * 0.5 + nx * wob * 0.4;
+      }
+    } else if (d < f.c.range * 1.15){
+      mx = -ny * wob * 0.8; my = nx * wob * 0.8;
+      if (d < f.c.range * 0.45){ mx -= nx * 0.6; my -= ny * 0.6; }
+    }
+    for (const pl of PILLARS){
+      const px = f.x - pl.x, py = f.y - pl.y, pd = Math.hypot(px, py);
+      if (pd < pl.r + f.r + 26){ mx += px / pd * 1.2; my += py / pd * 1.2; }
+    }
+    if (f.c.atkType === 'melee') tryMelee(f); else tryRanged(f);
+    if (f.spTimer <= 0 && d < f.c.specialRange && Math.random() < dt * 0.7 * diff()) castSpecial(f);
+  } else {
+    wanderAI(f, dt); return;
+  }
+  const l = Math.hypot(mx, my);
+  if (l > 1){ mx /= l; my /= l; }
+  moveEntity(f, dt, mx, my);
+}
+
+/* ---------- player input ---------- */
+function updatePlayer(f, dt){
+  let mx = 0, my = 0;
+  if (f.stun <= 0 && f.dashT <= 0){
+    if (keys['ArrowLeft']) mx -= 1; if (keys['ArrowRight']) mx += 1;
+    if (keys['ArrowUp']) my -= 1; if (keys['ArrowDown']) my += 1;
+    // touch joystick
+    mx += touchJoy.p1.mx; my += touchJoy.p1.my;
+    if (mx || my){
+      const len = Math.hypot(mx, my);
+      mx /= len; my /= len;
+      f.fx = mx; f.fy = my;
+    }
+  }
+  moveEntity(f, dt, mx, my);
+  if (f.dashT > 0){
+    // dash contact damage (multi-hit supports Double Kick)
+    for (const t of f.foes){
+      if (t.dead || t.iframes > 0) continue;
+      if (dist(f, t) < f.r + t.r + 6){
+        const hits = f.dashHit.get(t) || 0;
+        if (hits < f.dashHits){
+          f.dashHit.set(t, hits + 1);
+          const mult = hits === 1 ? 1.3 : 1;
+          applyDamage(t, f.dashDmg * mult * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: hits === 1 ? 260 : 200, color: '#ffd76a' });
+          if (f.c.specialKey === 'soulHarvest') f.hp = Math.min(f.maxHp, f.hp + 6);
+        }
+      }
+    }
+    // Stripe Kill leaves lingering damage zones
+    if (f.c.specialKey === 'stripeKill'){
+      f.stripeTick -= dt;
+      if (f.stripeTick <= 0){
+        f.stripeTick = 0.07;
+        zones.push({ x: f.x, y: f.y, t: 1.2, tick: 0.4, team: f.team, owner: f });
+      }
+    }
+    particles.push({ x: f.x + rand(-4, 4), y: f.y + rand(-4, 4), vx: 0, vy: 0, ttl: 0.28, maxT: 0.28, color: f.c.specialKey === 'featherChop' ? '#fff6e0' : '#ffd76a', size: 9, kind: 'ghost' });
+  }
+  if (f.stun <= 0 && f.dashT <= 0){
+    const manual = !save.autoShoot && f.isPlayer && !touchCapable;
+    if (!manual){
+      if (f.c.atkType === 'melee') tryMelee(f); else tryRanged(f);
+    }
+  }
+}
+
+/* ---------- effects ---------- */
+function sparks(x, y, color, n){
+  for (let i = 0; i < n; i++){
+    particles.push({
+      x, y, vx: rand(-170, 170), vy: rand(-170, 170),
+      ttl: rand(0.25, 0.5), maxT: 0.5, color, size: rand(1.5, 3), kind: 'spark',
+    });
+  }
+}
+function puff(x, y, color){
+  for (let i = 0; i < 5; i++){
+    particles.push({
+      x, y, vx: rand(-60, 60), vy: rand(-60, 60),
+      ttl: rand(0.2, 0.4), maxT: 0.4, color, size: rand(1.5, 3), kind: 'dot',
+    });
+  }
+}
+function puffCloud(x, y, color, n){
+  for (let i = 0; i < n; i++){
+    const a = rand(0, TAU), s = rand(30, 110);
+    particles.push({
+      x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      ttl: rand(0.3, 0.55), maxT: 0.55, color, size: rand(2.5, 5), kind: 'dot',
+    });
+  }
+}
+function burst(x, y, color, n){
+  for (let i = 0; i < n; i++){
+    const a = rand(0, TAU), s = rand(80, 260);
+    particles.push({
+      x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      ttl: rand(0.35, 0.65), maxT: 0.65, color, size: rand(2, 4), kind: 'spark',
+    });
+  }
+}
+function ring(x, y, r0, r1, color, lw){
+  rings.push({ x, y, r0, r1, ttl: 0.3, t: 0, color, lw });
+}
+
+function updateEffects(dt){
+  for (const p of particles){
+    p.ttl -= dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= Math.exp(-6 * dt); p.vy *= Math.exp(-6 * dt);
+  }
+  particles = particles.filter(p => p.ttl > 0);
+  for (const r of rings) r.t += dt;
+  rings = rings.filter(r => r.t < r.ttl);
+  for (const b of beams) b.t -= dt;
+  beams = beams.filter(b => b.t > 0);
+  for (const b of bolts) b.t -= dt;
+  bolts = bolts.filter(b => b.t > 0);
+  for (const d of dmgNums){ d.ttl -= dt; d.y -= 30 * dt; }
+  dmgNums = dmgNums.filter(d => d.ttl > 0);
+  if (shake.t > 0) shake.t -= dt;
+}
+
+/* ---------- main update ---------- */
+function update(dt){
+  if (introT > 0){
+    introT -= dt;
+    if (introT <= 0.75 && !banner2Shown){ banner2Shown = true; showBanner('FIGHT!', 0.7); }
+    if (introT <= 0) for (const f of fighters) f.stun = 0;
+    return;
+  }
+  for (const f of fighters){
+    if (f.dead){ f.deathT -= dt; continue; }
+    updateTimers(f, dt);
+    if (f.isPlayer) updatePlayer(f, dt); else updateAI(f, dt);
+    if (f.leap && f.dashT <= 0) landLeap(f);
+    if (f.yoyo){
+      f.yoyo.t -= dt; f.yoyo.tick -= dt;
+      if (f.yoyo.tick <= 0){
+        f.yoyo.tick = 0.4;
+        for (const foe of f.foes){
+          if (!foe.dead && foe.iframes <= 0 && dist(f, foe) < 55){
+            applyDamage(foe, 10 * (f.isPlayer ? f.lvlMult : f.dmgMult), f, { kb: 30 });
+          }
+        }
+        sparks(f.x, f.y, '#ff8a5a', 4);
+      }
+      if (f.yoyo.t <= 0) f.yoyo = null;
+    }
+    if (f.cloneT !== undefined){
+      f.cloneT -= dt;
+      if (f.cloneT <= 0 || (f.cloneOwner && f.cloneOwner.dead)){ f.hp = 0; killFighter(f); }
+    }
+  }
+  // soft separation
+  for (let i = 0; i < fighters.length; i++){
+    for (let j = i + 1; j < fighters.length; j++){
+      const a = fighters[i], b = fighters[j];
+      if (a.dead || b.dead) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = a.r + b.r;
+      if (d < min && d > 0.001){
+        const push = (min - d) / 2, nx = dx / d, ny = dy / d;
+        a.x -= nx * push; a.y -= ny * push;
+        b.x += nx * push; b.y += ny * push;
+      }
+    }
+  }
+  // lingering damage zones (Stripe Kill, goo, tornado, gravity well)
+  for (const z of zones){
+    z.t -= dt; z.tick -= dt;
+    if (z.vx || z.vy){
+      z.x = clamp(z.x + z.vx * dt, WALL + 16, W - WALL - 16);
+      z.y = clamp(z.y + z.vy * dt, WALL + 16, H - WALL - 16);
+    }
+    if (z.follow && z.owner && !z.owner.dead){ z.x = z.owner.x; z.y = z.owner.y; }
+    if (z.pull){
+      for (const f of fighters){
+        if (f.dead || f.team === z.team || f.iframes > 0) continue;
+        const dx = z.x - f.x, dy = z.y - f.y, d = Math.hypot(dx, dy);
+        if (d < (z.pullR || 90) && d > 4){
+          const step = Math.min(d - 4, 150 * dt);
+          f.x = clamp(f.x + dx / d * step, WALL + f.r, W - WALL - f.r);
+          f.y = clamp(f.y + dy / d * step, WALL + f.r, H - WALL - f.r);
+        }
+      }
+    }
+    if (z.tick <= 0 && z.t > 0){
+      z.tick = z.rate || 0.45;
+      for (const f of fighters){
+        if (f.dead || f.team === z.team || f.iframes > 0) continue;
+        if (Math.hypot(f.x - z.x, f.y - z.y) < (z.rad || 20)){
+          if (z.slow) f.slow = { t: 0.9, mult: 0.55 };
+          else if ((z.dmg ?? 8) > 0) applyDamage(f, (z.dmg ?? 8) * (z.owner.isPlayer ? (z.owner.lvlMult || 1) : z.owner.dmgMult), z.owner, { kb: 0 });
+        }
+      }
+    }
+  }
+  zones = zones.filter(z => z.t > 0);
+  updateProjectiles(dt);
+  updateEffects(dt);
+  if (pendingEnd){
+    pendingEnd.t -= dt;
+    if (pendingEnd.t <= 0 && uiScreen === 'fight'){ const w = pendingEnd.won; pendingEnd = null; endBattle(w); }
+  }
+  updateHUD();
+}
+
+/* ---------- rendering ---------- */
+function rr(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawFighter(f){
+  const alpha = f.dead ? Math.max(0, f.deathT / 0.55) : 1;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (f.cloneT !== undefined) ctx.globalAlpha *= 0.75;
+  const bob = f.dead ? 0 : Math.sin(time * 4 + f.seed) * 1.5;
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(f.x, f.y + f.r * 0.85, f.r * 0.95, f.r * 0.4, 0, 0, TAU); ctx.fill();
+  ctx.translate(f.x, f.y + bob);
+  if (f.iframes > 0 && !f.dead && Math.floor(time * 18) % 2 === 0) ctx.globalAlpha *= 0.35;
+  // body
+  const g = ctx.createRadialGradient(-f.r * 0.35, -f.r * 0.35, f.r * 0.15, 0, 0, f.r + 3);
+  g.addColorStop(0, f.c.trim); g.addColorStop(0.35, f.c.body); g.addColorStop(1, shadeHex(f.c.body, -45));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, f.r, 0, TAU); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(6,10,22,0.8)'; ctx.stroke();
+  // facing: weapon + visor
+  ctx.save();
+  ctx.rotate(Math.atan2(f.fy, f.fx));
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillRect(f.r - 2, -2.5, 10, 5);
+  ctx.fillStyle = 'rgba(10,14,28,0.9)';
+  ctx.beginPath(); ctx.arc(f.r * 0.5, -4, 2.4, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(f.r * 0.5, 4, 2.4, 0, TAU); ctx.fill();
+  ctx.restore();
+  // swing effect
+  if (f.swingT > 0){
+    const t = 1 - f.swingT / 0.12;
+    const half = f.c.arc * Math.PI / 360;
+    const a = Math.atan2(f.fy, f.fx);
+    ctx.save(); ctx.rotate(a);
+    ctx.strokeStyle = `rgba(255,240,200,${0.55 * (1 - t)})`;
+    ctx.lineWidth = 4 * (1 - t) + 1;
+    ctx.beginPath(); ctx.arc(0, 0, f.r + 6 + (f.c.range - f.r - 6) * (0.4 + 0.6 * t), -half, half); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,240,200,${0.22 * (1 - t)})`;
+    ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.arc(0, 0, f.r + 6 + (f.c.range - f.r - 6) * t, -half * 0.6, half * 0.6); ctx.stroke();
+    ctx.restore();
+  }
+  // fan gust cone (Miko)
+  if (f.gustT > 0){
+    const a = f.gustT / 0.25;
+    ctx.save(); ctx.rotate(f.gustA);
+    ctx.fillStyle = `rgba(200,240,220,${0.3 * a})`;
+    ctx.beginPath(); ctx.moveTo(f.r, 0);
+    ctx.arc(0, 0, 150, -0.96, 0.96); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,${0.5 * a})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(f.r + 20, -60); ctx.lineTo(f.r + 70, -70);
+    ctx.moveTo(f.r + 30, 0); ctx.lineTo(f.r + 80, 0);
+    ctx.moveTo(f.r + 20, 60); ctx.lineTo(f.r + 70, 70);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // yoyo orbit (Bolo)
+  if (f.yoyo){
+    const a = time * 9;
+    ctx.strokeStyle = 'rgba(255,138,90,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(0, 0, 48, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    const yx = Math.cos(a) * 48, yy = Math.sin(a) * 48;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(yx, yy); ctx.stroke();
+    ctx.fillStyle = '#ff6b4a';
+    ctx.beginPath(); ctx.arc(yx, yy, 6, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  // stun stars
+  if (f.stun > 0 && !f.dead){
+    const t = time * 6;
+    for (let i = 0; i < 3; i++){
+      const a = t + i * TAU / 3;
+      ctx.fillStyle = '#ffe9a8';
+      ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * 18, f.y + f.r + 10 + Math.sin(a) * 4, 2.2, 0, TAU); ctx.fill();
+    }
+  }
+  // overhead hp
+  const showBar = !f.dead && f.hp < f.maxHp;
+  if (showBar){
+    const w = 34, h = 4, x = f.x - w / 2, y = f.y - f.r - 18;
+    ctx.fillStyle = 'rgba(6,10,22,0.8)';
+    rr(x - 1, y - 1, w + 2, h + 2, 2); ctx.fill();
+    const pct = f.hp / f.maxHp;
+    ctx.fillStyle = pct > 0.5 ? '#5ad06a' : pct > 0.25 ? '#ffc34d' : '#ff5a5a';
+    rr(x, y, w * pct, h, 2); ctx.fill();
+  }
+  // name
+  ctx.font = '600 10px Rubik, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = f.isPlayer ? 'rgba(255,215,106,0.95)' : 'rgba(220,228,250,0.85)';
+  const label = f.c.name;
+  ctx.fillText(label, f.x, f.y - f.r - (showBar ? 26 : 14));
+}
+
+function drawProj(p){
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle);
+  if (p.kind === 'arrow'){
+    ctx.strokeStyle = 'rgba(220,230,210,0.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-2, 0); ctx.stroke();
+    ctx.strokeStyle = '#e8e4d0'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(5, 0); ctx.stroke();
+    ctx.fillStyle = '#e8e4d0';
+    ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(3, -3.5); ctx.lineTo(3, 3.5); ctx.closePath(); ctx.fill();
+  } else if (p.kind === 'bolt'){
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 8);
+    g.addColorStop(0, 'rgba(230,220,255,0.95)'); g.addColorStop(1, 'rgba(155,126,222,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#e8dcff';
+    ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.fill();
+  } else if (p.kind === 'fire'){
+    ctx.strokeStyle = 'rgba(255,150,60,0.3)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-2, 0); ctx.stroke();
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 7);
+    g.addColorStop(0, '#ffe9b0'); g.addColorStop(0.4, '#ff9a3d'); g.addColorStop(1, 'rgba(255,90,30,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, TAU); ctx.fill();
+  } else if (p.kind === 'coconut'){
+    ctx.fillStyle = '#6b4a2b';
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#3d2813'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.arc(-2.5, -2.5, 2.8, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#3d2813';
+    ctx.beginPath(); ctx.arc(3, 0, 1.2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(-2, 3, 1.2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(2, -3.5, 1.2, 0, TAU); ctx.fill();
+  } else if (p.kind === 'coin'){
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.crit ? 11 : 7);
+    g.addColorStop(0, '#fff3c4'); g.addColorStop(0.55, '#ffd76a'); g.addColorStop(1, 'rgba(232,168,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, p.crit ? 11 : 7, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#e8a83c';
+    ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff3c4';
+    ctx.beginPath(); ctx.arc(-1.5, -1.5, 2, 0, TAU); ctx.fill();
+  } else if (p.kind === 'boomerang'){
+    ctx.rotate(time * 12);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#cfe2f2'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, 0, 9, -1.1, 1.1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(207,226,242,0.4)'; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.arc(0, 0, 9, -0.8, 0.8); ctx.stroke();
+    ctx.lineCap = 'butt';
+  } else if (p.kind === 'wave'){
+    const g = ctx.createRadialGradient(0, -2, 0, 0, 0, 15);
+    g.addColorStop(0, 'rgba(216,242,255,0.95)'); g.addColorStop(0.5, 'rgba(74,163,223,0.85)'); g.addColorStop(1, 'rgba(74,163,223,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 15, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0, 0, 15, -1.2, 1.2); ctx.stroke();
+  } else if (p.kind === 'bomb'){
+    const flash = p.fuse < 0.35 && Math.floor(time * 14) % 2 === 0;
+    ctx.fillStyle = flash ? '#ffffff' : '#d8345f';
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#8f1f40'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(-2, -2, 2.5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#3f7a3f'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(2, -5); ctx.quadraticCurveTo(5, -9, 3, -10); ctx.stroke();
+  } else if (p.kind === 'seed'){
+    ctx.fillStyle = '#a8d84f';
+    ctx.beginPath(); ctx.ellipse(0, 0, 5, 3.5, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#5f8a2b';
+    ctx.beginPath(); ctx.arc(3, 0, 1.5, 0, TAU); ctx.fill();
+  } else if (p.kind === 'goo'){
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 6);
+    g.addColorStop(0, '#f0dcff'); g.addColorStop(0.5, '#c86b9f'); g.addColorStop(1, 'rgba(200,107,159,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill();
+  } else if (p.kind === 'boulder'){
+    ctx.fillStyle = '#8a7a62';
+    ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#5a4c38'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.arc(-3, -3, 3.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.arc(3, 4, 2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(-4, 3, 1.5, 0, TAU); ctx.fill();
+  } else if (p.kind === 'meteor'){
+    ctx.strokeStyle = 'rgba(255,150,60,0.4)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-4, 0); ctx.stroke();
+    const g = ctx.createRadialGradient(-2, -2, 0, 0, 0, 10);
+    g.addColorStop(0, '#ffd9a8'); g.addColorStop(0.5, '#e8912d'); g.addColorStop(1, '#7a3f14');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill();
+  } else if (p.kind === 'aurora'){
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 6);
+    g.addColorStop(0, '#f0dcff'); g.addColorStop(0.5, '#c05cff'); g.addColorStop(1, 'rgba(192,92,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill();
+  } else if (p.kind === 'bat'){
+    const flap = Math.sin(time * 22) * 0.5;
+    ctx.fillStyle = '#4a3a6b';
+    ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#5a4a8f';
+    ctx.beginPath();
+    ctx.moveTo(-2, 0);
+    ctx.lineTo(-6, -6 * (1 + flap)); ctx.lineTo(-9, -2); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-2, 0);
+    ctx.lineTo(-6, 6 * (1 + flap)); ctx.lineTo(-9, 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff5a5a';
+    ctx.beginPath(); ctx.arc(1, -1.5, 1, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(1, 1.5, 1, 0, TAU); ctx.fill();
+  } else if (p.kind === 'spear'){
+    ctx.strokeStyle = 'rgba(232,224,208,0.35)'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(-6, 0); ctx.stroke();
+    ctx.strokeStyle = '#c8b088'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(6, 0); ctx.stroke();
+    ctx.fillStyle = '#e8e0d0';
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(5, -3.5); ctx.lineTo(5, 3.5); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function render(){
+  ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+  if (shake.t > 0 && !reducedMotion){
+    const m = shake.mag * (shake.t / 0.25) * 8;
+    ctx.translate(rand(-m, m), rand(-m, m));
+  }
+  ctx.drawImage(floorCanvas, 0, 0, W, H);
+  // rings
+  for (const r of rings){
+    const t = r.t / r.ttl;
+    const rad = r.r0 + (r.r1 - r.r0) * t;
+    ctx.strokeStyle = r.color;
+    ctx.globalAlpha = (1 - t) * 0.9;
+    ctx.lineWidth = r.lw || 4;
+    ctx.beginPath(); ctx.arc(r.x, r.y, rad, 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  // particles
+  for (const p of particles){
+    const a = p.ttl / p.maxT;
+    if (p.kind === 'ghost'){
+      ctx.fillStyle = p.color; ctx.globalAlpha = a * 0.35;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 - a * 0.5), 0, TAU); ctx.fill();
+    } else if (p.kind === 'spark'){
+      ctx.strokeStyle = p.color; ctx.globalAlpha = a; ctx.lineWidth = p.size;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); ctx.stroke();
+    } else {
+      ctx.fillStyle = p.color; ctx.globalAlpha = a * 0.8;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // lingering stripe/goo zones
+  for (const z of zones){
+    const a = Math.min(1, z.t / (z.slow ? 3 : 1.2));
+    ctx.globalAlpha = a * 0.55;
+    if (z.slow){
+      ctx.fillStyle = 'rgba(200,107,159,0.25)';
+      ctx.beginPath(); ctx.arc(z.x, z.y, 17, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#e8a8cc'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(z.x, z.y, 17, 0, TAU); ctx.stroke();
+    } else if (z.pull){
+      const R = (z.dmg ?? 0) > 0 ? 24 : 34;
+      ctx.strokeStyle = (z.dmg ?? 0) > 0 ? '#9fb8a8' : '#a88fd8';
+      ctx.lineWidth = 2.5;
+      for (let i = 0; i < 3; i++){
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, R - i * 7, time * 3 + i * 2, time * 3 + i * 2 + 4.4); ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, TAU); ctx.stroke();
+    } else {
+      ctx.strokeStyle = '#ff9a3d'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(z.x, z.y, 15, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = '#3d2813'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(z.x, z.y, 9, 0, TAU); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // fighters: corpses first
+  for (const f of fighters) if (f.dead) drawFighter(f);
+  for (const f of fighters) if (!f.dead) drawFighter(f);
+  // projectiles
+  for (const p of projectiles) drawProj(p);
+  // beams
+  for (const b of beams){
+    const a = b.t / b.ttl;
+    ctx.globalAlpha = a;
+    ctx.lineCap = 'round';
+    if (b.kind === 'rainbow'){
+      const cols = ['#ff6b6b', '#ffb020', '#5ad06a', '#5ea2ff', '#b7a8ff'];
+      for (let i = 0; i < cols.length; i++){
+        const x1 = b.x1 + (b.x2 - b.x1) * i / cols.length;
+        const y1 = b.y1 + (b.y2 - b.y1) * i / cols.length;
+        const x2 = b.x1 + (b.x2 - b.x1) * (i + 1) / cols.length;
+        const y2 = b.y1 + (b.y2 - b.y1) * (i + 1) / cols.length;
+        ctx.strokeStyle = cols[i]; ctx.lineWidth = 9;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+    } else {
+      ctx.strokeStyle = b.kind === 'sunshine' ? '#ffdf7e' : b.kind === 'solar' ? '#fff6d8' : '#7a68b8';
+      ctx.lineWidth = b.kind === 'solar' ? 14 : 9;
+      ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  }
+  // bolts
+  for (const b of bolts){
+    const a = b.t / b.ttl;
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = '#ffe98a'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y - 70);
+    for (let yy = b.y - 70; yy < b.y; yy += 10){
+      ctx.lineTo(b.x + (Math.random() < 0.5 ? -1 : 1) * rand(2, 8), yy);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(b.x, b.y - 70); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,233,138,0.5)';
+    ctx.beginPath(); ctx.arc(b.x, b.y, 8 * (1 - a), 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // damage numbers
+  for (const d of dmgNums){
+    ctx.globalAlpha = Math.min(1, d.ttl / 0.35);
+    ctx.fillStyle = d.color;
+    ctx.font = (d.big ? '800 19px' : '700 13px') + ' Rubik, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(d.v), d.x, d.y);
+  }
+  ctx.globalAlpha = 1;
+  // vignette (no shake)
+  ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.78);
+  vg.addColorStop(0, 'rgba(4,8,18,0)');
+  vg.addColorStop(1, 'rgba(4,8,18,0.55)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- HUD & screens ---------- */
+function updateHUD(){
+  if (uiScreen !== 'fight' || fighters.length === 0) return;
+  const f = fighters[0];
+  if (!f) return;
+  const hp = $('h1hp'), sp = $('h1sp'), name = $('h1name'), buff = $('h1buff');
+  name.textContent = f.c.name + ' LV' + (f.lvl || 1) + (f.lives > 1 ? ' ' + '❤'.repeat(f.lives) : '');
+  const pct = Math.max(0, f.hp / f.maxHp * 100);
+  hp.style.width = pct + '%';
+  hp.classList.toggle('low', pct < 35);
+  const spPct = Math.max(0, (1 - Math.max(0, f.spTimer) / f.c.specialCd)) * 100;
+  sp.style.width = spPct + '%';
+  sp.classList.toggle('ready', f.spTimer <= 0);
+  buff.textContent = f.slow && f.slow.t > 0 ? 'SLOWED'
+    : f.c.specialKey === 'godlike' ? GODLIKE_SPECIALS[f.spIdx].name + ' ' + (f.spIdx + 1) + '/5'
+    : '';
+}
+
+function showScreen(name){
+  const map = { menu: 0, select: 1, roster: 2, result: 3, paused: 4 };
+  screens.forEach((s, i) => s.hidden = i !== map[name]);
+}
+
+/* ---------- unlock ---------- */
+function rollUnlock(minRarity){
+  const rankOf = id => Object.keys(RARITY).indexOf(CHARS[id].rarity);
+  const pool = minRarity
+    ? CHAR_ORDER.filter(id => rankOf(id) >= Object.keys(RARITY).indexOf(minRarity))
+    : CHAR_ORDER;
+  const total = pool.reduce((s, id) => s + UNLOCK_WEIGHTS[id], 0);
+  let r = Math.random() * total;
+  for (const id of pool){
+    r -= UNLOCK_WEIGHTS[id];
+    if (r <= 0){
+      if (!save.unlocked.includes(id)){
+        save.unlocked.push(id);
+        save.levels[id] = 1;
+        return { id, isNew: true, level: 1 };
+      }
+      const lv = levelOf(id);
+      if (lv < 5){
+        save.levels[id] = lv + 1;
+        return { id, leveled: true, prev: lv, level: lv + 1 };
+      }
+      const full = CHAR_ORDER.every(x => save.unlocked.includes(x) && levelOf(x) >= 5);
+      return { id, maxed: true, full };
+    }
+  }
+  return { id: 'Roi', maxed: true };
+}
+
+function showResult(won){
+  uiScreen = 'over';
+  showScreen('result');
+  hudEl.hidden = true;
+  updateTouchUI();
+  const title = $('resTitle');
+  title.textContent = won ? 'VICTORY' : 'DEFEAT';
+  title.className = won ? 'win' : 'lose';
+  let html = '';
+  let portId = null;
+  if (won){
+    const isBrawlWin = battleMode === 'brawl';
+    if (isBrawlWin){
+      flashScreen();
+      bannerEl.style.color = '#c05cff';
+      showBanner('BRAWL PICK!', 1.8);
+      setTimeout(() => { bannerEl.style.color = ''; }, 2000);
+    }
+    const r = isBrawlWin ? rollUnlock('epic') : rollUnlock();
+    const c = CHARS[r.id];
+    if (r.isNew){
+      portId = r.id;
+      html = `<div class="unlockbox"><canvas id="resPort" width="96" height="96"></canvas><div class="unlocktxt"><div class="unlockhead">NEW CHAMPION UNLOCKED!</div><div class="unlockname">${c.name} <span class="chip ${c.rarity}">${RARITY[c.rarity].label}</span> <span class="chip lv">LV 1</span></div><div class="unlockdesc"><b>${c.special}</b> — ${c.specialDesc}</div></div></div>`;
+      AudioFX.unlock();
+    } else if (r.leveled){
+      portId = r.id;
+      html = `<div class="unlockbox"><canvas id="resPort" width="96" height="96"></canvas><div class="unlocktxt"><div class="unlockhead">${c.name.toUpperCase()} LEVELED UP!</div><div class="unlockname">Level ${r.level} <span class="chip ${c.rarity}">${RARITY[c.rarity].label}</span> <span class="chip lv${r.level >= 5 ? ' max' : ''}">LV ${r.level}</span></div><div class="unlockdesc">+8% health and damage.${r.level >= 5 ? ' Max level — this champion is at full power!' : ''}</div></div></div>`;
+      AudioFX.unlock();
+    } else if (r.full){
+      html = `<div class="unlockbox"><div class="unlocktxt"><div class="unlockhead">FULL COLLECTION!</div><div class="unlockdesc">All 75 champions are unlocked and at max level 5. You are unstoppable.</div></div></div>`;
+    } else {
+      html = `<div class="unlockbox"><div class="unlocktxt"><div class="unlockhead">${c.name} is already MAX LEVEL (5).</div><div class="unlockdesc">Keep winning to level up your other champions.</div></div></div>`;
+    }
+  } else {
+    html = `<div class="unlockbox"><div class="unlocktxt"><div class="unlockhead">You were defeated.</div><div class="unlockdesc">Win a battle to roll for a new champion or a level-up. The rarer the champion, the rarer the drop.</div></div></div>`;
+  }
+  $('resUnlock').innerHTML = html;
+  if (portId) drawPortrait($('resPort'), portId, true);
+  persist();
+  updateMenuStats();
+}
+
+function endBattle(won){
+  uiScreen = 'over';
+  if (won) save.wins++;
+  if (won) AudioFX.win(); else AudioFX.lose();
+  showResult(won);
+}
+
+/* ---------- roster & cards ---------- */
+function drawPortrait(canvas, id, owned){
+  const c = canvas.getContext('2d');
+  c.clearRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2, cy = canvas.height / 2, r = canvas.width * 0.3;
+  if (owned){
+    const rc = RARITY[CHARS[id].rarity].color;
+    c.strokeStyle = rc + '55'; c.lineWidth = 2;
+    c.beginPath(); c.arc(cx, cy, r + 5, 0, TAU); c.stroke();
+  }
+  c.fillStyle = 'rgba(0,0,0,0.35)';
+  c.beginPath(); c.ellipse(cx, cy + r * 0.9, r * 0.95, r * 0.38, 0, 0, TAU); c.fill();
+  if (!owned){
+    c.fillStyle = '#1a2138';
+    c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.fill();
+    c.strokeStyle = '#2a3554'; c.lineWidth = 1.5; c.stroke();
+    c.fillStyle = '#3a4568';
+    c.font = `700 ${r}px Rubik, sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('?', cx, cy + 2);
+    return;
+  }
+  const ch = CHARS[id];
+  const g = c.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.15, cx, cy, r + 2);
+  g.addColorStop(0, ch.trim); g.addColorStop(0.35, ch.body); g.addColorStop(1, shadeHex(ch.body, -45));
+  c.fillStyle = g;
+  c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.fill();
+  c.lineWidth = 2; c.strokeStyle = 'rgba(6,10,22,0.8)'; c.stroke();
+  c.save();
+  c.translate(cx, cy); c.rotate(-Math.PI / 4);
+  c.fillStyle = 'rgba(255,255,255,0.9)';
+  c.fillRect(r - 2, -2.5, 10, 5);
+  c.fillStyle = 'rgba(10,14,28,0.9)';
+  c.beginPath(); c.arc(r * 0.5, -4, 2.4, 0, TAU); c.fill();
+  c.beginPath(); c.arc(r * 0.5, 4, 2.4, 0, TAU); c.fill();
+  c.restore();
+}
+
+function buildGrid(el, ownedOnly, onPick){
+  el.innerHTML = '';
+  for (const id of CHAR_ORDER){
+    const owned = save.unlocked.includes(id);
+    if (ownedOnly && !owned) continue;
+    const c = CHARS[id];
+    const div = document.createElement('div');
+    div.className = 'ccard' + (owned ? '' : ' locked');
+    div.dataset.id = id;
+    div.innerHTML = `
+      <canvas class="cport" width="96" height="96"></canvas>
+      <div class="cname">${owned ? c.name : '???'}</div>
+      <div class="cchipwrap"><span class="chip ${owned ? c.rarity : 'unknown'}">${owned ? RARITY[c.rarity].label : 'Locked'}</span>${owned ? ` <span class="chip lv${levelOf(id) >= 5 ? ' max' : ''}">LV ${levelOf(id)}</span>` : ''}</div>
+      <div class="cstats">
+        <div class="cstat"><span>HP</span><i><b style="width:${Math.round(c.hp / 1.7)}%"></b></i></div>
+        <div class="cstat"><span>SPD</span><i><b style="width:${Math.round(c.speed / 1.9)}%"></b></i></div>
+        <div class="cstat"><span>PWR</span><i><b style="width:${Math.round((c.dmg / c.atkCd) / 80)}%"></b></i></div>
+      </div>
+      <div class="cdesc">${owned ? c.specialDesc : 'Win battles to reveal.'}</div>`;
+    drawPortrait(div.querySelector('canvas'), id, owned);
+    if (owned && onPick) div.addEventListener('click', () => onPick(id, div));
+    el.appendChild(div);
+  }
+}
+
+function pickCard(id, div){
+  selectedId = id;
+  for (const el of document.querySelectorAll('#selectGrid .ccard')) el.classList.remove('selected');
+  div.classList.add('selected');
+  AudioFX.click();
+}
+
+/* ---------- UI actions ---------- */
+function updateTouchUI(){
+  if (!touchCapable) return;
+  touchEl.hidden = uiScreen !== 'fight';
+}
+
+function updateMenuStats(){
+  $('mWins').textContent = save.wins;
+  $('mOwned').textContent = save.unlocked.length + '/75';
+  $('mPower').textContent = '+' + Math.round((diff() - 1) * 100) + '%';
+}
+
+function openSelect(mode){
+  battleMode = mode;
+  selectedId = null;
+  updateSelectScreen();
+  showScreen('select');
+}
+
+function updateSelectScreen(){
+  $('selTitle').textContent = 'Choose your champion';
+  buildGrid($('selectGrid'), true, pickCard);
+  if (!selectedId || !save.unlocked.includes(selectedId)){
+    selectedId = save.unlocked.includes('Roi') ? 'Roi' : save.unlocked[0];
+  }
+  const card = document.querySelector(`#selectGrid .ccard[data-id="${selectedId}"]`);
+  if (card) card.classList.add('selected');
+}
+
+function confirmSelect(){
+  if (!selectedId) return;
+  startBattle(battleMode, selectedId);
+}
+
+function goMenu(){
+  uiScreen = 'menu';
+  showScreen('menu');
+  hudEl.hidden = true;
+  updateTouchUI();
+  updateMenuStats();
+}
+
+function togglePause(){
+  if (uiScreen === 'fight'){ uiScreen = 'paused'; showScreen('paused'); }
+  else if (uiScreen === 'paused'){ uiScreen = 'fight'; showScreen('fight'); hudEl.hidden = false; }
+  updateTouchUI();
+}
+
+function toggleMute(){
+  save.mute = !save.mute;
+  persist();
+  AudioFX.setMuted(save.mute);
+  $('btnMute').textContent = save.mute ? '🔇 Sound off' : '🔊 Sound on';
+}
+
+function updateHint(){
+  if (uiScreen !== 'fight') return;
+  if (touchCapable){
+    $('hint').textContent = 'Drag the stick to move · tap ⚡ for special';
+  } else {
+    $('hint').textContent = save.autoShoot
+      ? '← ↑ ↓ → move · SPACE special · P pause'
+      : '← ↑ ↓ → move · ENTER shoot · SPACE special · P pause';
+  }
+}
+
+function updateAutoUI(){
+  const label = save.autoShoot ? '🔫 Auto-shoot: ON' : '🔫 Auto-shoot: OFF';
+  $('btnAutoMenu').textContent = label;
+  $('btnAuto').textContent = label;
+  $('btnAuto').classList.toggle('off', !save.autoShoot);
+  updateHint();
+}
+
+function toggleAutoShoot(){
+  save.autoShoot = !save.autoShoot;
+  persist();
+  updateAutoUI();
+  AudioFX.click();
+}
+
+/* ---------- events ---------- */
+function wireEvents(){
+  $('goDuel').addEventListener('click', () => openSelect('duel'));
+  $('goBrawl').addEventListener('click', () => openSelect('brawl'));
+  $('goRoster').addEventListener('click', () => { buildGrid($('rosterGrid'), false, null); showScreen('roster'); });
+  $('btnBackSel').addEventListener('click', goMenu);
+  $('btnBackRoster').addEventListener('click', goMenu);
+  $('btnFight').addEventListener('click', confirmSelect);
+  $('btnAgain').addEventListener('click', () => startBattle(lastFight.mode, lastFight.p1));
+  $('btnMenu').addEventListener('click', goMenu);
+  $('btnResume').addEventListener('click', togglePause);
+  $('btnQuit').addEventListener('click', goMenu);
+  $('btnMute').addEventListener('click', toggleMute);
+  $('btnAuto').addEventListener('click', toggleAutoShoot);
+  $('btnAutoMenu').addEventListener('click', toggleAutoShoot);
+
+  let resetArmed = false, resetTimer = 0;
+  $('btnReset').addEventListener('click', () => {
+    if (!resetArmed){
+      resetArmed = true;
+      $('btnReset').textContent = 'Really? Click again';
+      resetTimer = setTimeout(() => { resetArmed = false; $('btnReset').textContent = 'Reset save'; }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer); resetArmed = false;
+    $('btnReset').textContent = 'Reset save';
+    try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+    save = { unlocked: ['Roi'], wins: 0, mute: save.mute, autoShoot: true, levels: {} };
+    persist();
+    updateMenuStats();
+    AudioFX.click();
+  });
+
+  if (touchCapable){
+    const bindStick = (stick, knob, out) => {
+      let active = false;
+      const center = () => {
+        const r = stick.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      };
+      const onDown = (e) => {
+        e.preventDefault();
+        active = true;
+        try { stick.setPointerCapture(e.pointerId); } catch(err){}
+        onMove(e);
+      };
+      const onMove = (e) => {
+        if (!active) return;
+        const c = center();
+        let dx = e.clientX - c.x, dy = e.clientY - c.y;
+        const d = Math.hypot(dx, dy), max = 44;
+        if (d > max){ dx = dx / d * max; dy = dy / d * max; }
+        knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        out.mx = dx / max; out.my = dy / max;
+      };
+      const onUp = () => {
+        active = false;
+        out.mx = 0; out.my = 0;
+        knob.style.transform = 'translate(-50%, -50%)';
+      };
+      stick.addEventListener('pointerdown', onDown);
+      stick.addEventListener('pointermove', onMove);
+      stick.addEventListener('pointerup', onUp);
+      stick.addEventListener('pointercancel', onUp);
+    };
+    bindStick($('stick1'), $('knob1'), touchJoy.p1);
+    $('tsp1').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (uiScreen === 'fight'){ const p = fighters[0]; if (p && !p.dead) castSpecial(p); }
+    });
+    $('tpause').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (uiScreen === 'fight' || uiScreen === 'paused') togglePause();
+    });
+  }
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    const kl = k.toLowerCase();
+    if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight' || k === ' ') e.preventDefault();
+    if (kl === 'm'){ toggleMute(); return; }
+    if (kl === 't'){ toggleAutoShoot(); return; }
+    if (kl === 'p' || k === 'Escape'){
+      if (uiScreen === 'fight' || uiScreen === 'paused'){ togglePause(); return; }
+      if (uiScreen === 'select'){ goMenu(); return; }
+      if (uiScreen === 'roster'){ goMenu(); return; }
+      return;
+    }
+    if (k === ' ' && !e.repeat && uiScreen === 'fight'){
+      const p1 = fighters[0];
+      if (p1 && !p1.dead) castSpecial(p1);
+      return;
+    }
+    if (k === 'Enter'){
+      e.preventDefault();
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      if (uiScreen === 'fight' && !save.autoShoot){
+        const p1 = fighters[0];
+        if (p1 && !p1.dead){
+          if (p1.c.atkType === 'melee') tryMelee(p1); else tryRanged(p1);
+        }
+        return;
+      }
+      if (uiScreen === 'select') confirmSelect();
+      else if (uiScreen === 'paused') togglePause();
+      else if (uiScreen === 'over' && lastFight.mode) startBattle(lastFight.mode, lastFight.p1);
+      return;
+    }
+    keys[e.code] = true;
+  });
+  window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+  window.addEventListener('resize', () => { setupCanvas(); buildFloor(); });
+}
+
+/* ---------- main loop ---------- */
+function frame(ts){
+  const dt = Math.min(0.033, (ts - last) / 1000 || 0.016);
+  last = ts;
+  time += dt;
+  if (uiScreen === 'fight') update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- init ---------- */
+loadSave();
+setupCanvas();
+buildFloor();
+AudioFX.setMuted(save.mute);
+$('btnMute').textContent = save.mute ? '🔇 Sound off' : '🔊 Sound on';
+updateAutoUI();
+wireEvents();
+updateMenuStats();
+requestAnimationFrame(frame);
+
+/* debug hooks (for automated testing) */
+window.__arena = {
+  get screen(){ return uiScreen; },
+  get save(){ return save; },
+  fighters: () => fighters,
+  state: () => ({ proj: projectiles.length, beams: beams.length, bolts: bolts.length, zones: zones.length }),
+  start: (mode, p1, p2) => startBattle(mode, p1, p2),
+  cast: () => { const p = fighters[0]; if (p) castSpecial(p); },
+  forceWin(){ if (uiScreen === 'fight'){ for (const f of fighters) if (f.team !== 'a' && !f.dead){ f.hp = 0; killFighter(f); } } },
+  forceLose(){ if (uiScreen === 'fight'){ for (const f of fighters) if (f.team === 'a' && !f.dead){ f.hp = 0; killFighter(f); } } },
+};
+</script>
