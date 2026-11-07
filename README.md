@@ -1,6 +1,6 @@
 # Retro Arcade
 
-A neon arcade hub — 8 games, one cabinet. Open `index.html` and play.
+A neon arcade hub — 9 games, one cabinet. Open `index.html` and play.
 
 ## Games
 
@@ -14,6 +14,7 @@ A neon arcade hub — 8 games, one cabinet. Open `index.html` and play.
 | 6 | 🐛 Chaos Bug Hunt | Jet shooter — hunt the bugs, beat the boss |
 | 7 | 🧙 Hogwarts Game Room | Hosted at [jianran.github.io/hogwarts-game-room](https://jianran.github.io/hogwarts-game-room/) |
 | 8 | ⛄ Snowman Bros | Platformer for 1–2 players |
+| 9 | ♞ Neon Chess | Classic chess — 2P hotseat or VS CPU (3 levels), full rules: castling, en passant, promotion |
 
 ## Tokens
 
@@ -32,4 +33,4 @@ Double-click `index.html`, or serve it:
 bash start.sh          # → http://127.0.0.1:8137/
 ```
 
-Keys `1`–`8` launch games from the hub.
+Keys `1`–`9` launch games from the hub.
