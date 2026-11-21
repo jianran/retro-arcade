@@ -266,7 +266,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 </main>
 
 <footer>
-  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge &amp; Chaos Bug Hunt cost 3, other games cost 1. Buy 5 for ₩1,000 in the Token Shop.</p>
+  <p><b>🪙 Tokens</b> — 5 free every day, unused ones stack up. Elemental Merge, Chaos Bug Hunt, DOOM &amp; Rocket Forge cost 3, other games cost 1. Buy 5 for ₩1,000 in the Token Shop.</p>
   <p><b>💡 Runs fully offline</b> — double-click <code>index.html</code> and play. Only Hogwarts Game Room (and the display fonts) need internet.</p>
   <p><b>🕵️ Clue Hunt multiplayer</b> — run <code>bash games/clue-hunt/start.sh</code> to start its server, then share the link it prints.</p>
   <p><b>🖥️ Prefer a server?</b> — run <code>bash start.sh</code>, then open <code>http://127.0.0.1:8137/</code>. Tip: keys <code>1</code>–<code>13</code> launch games.</p>
@@ -337,7 +337,7 @@ const GAMES = [
    tag:"Draft a trio, read the attribute chart, outduel the night arena — attack, swap, or self-destruct.", badges:["Team Battler","VS CPU"]},
   {id:"dragon",    name:"Dragon Flight",      icon:"🐲", accent:"#2dd4bf", cost:1, url:"games/dragon-flight/index.html?v=1",
    tag:"Flap through the sky, dodge obstacles, grab rings — solo or up to 3 players.", badges:["1–3P"]},
-  {id:"rocket",    name:"Rocket Forge",       icon:"🚀", accent:"#ff7a3d", cost:1, url:"games/rocket-forge/index.html?v=1",
+  {id:"rocket",    name:"Rocket Forge",       icon:"🚀", accent:"#ff7a3d", cost:3, url:"games/rocket-forge/index.html?v=1",
    tag:"Design a rocket from parts, ride it past the Kármán line — dodge debris, manage heat, land under 12 m/s.", badges:["Rocket Builder","Physics"]},
 ];
 
@@ -374,8 +374,9 @@ grid.innerHTML = GAMES.map(g => `
   </article>`).join("");
 
 /* ---- token system ----
-   5 free tokens per day (unused ones stack up). Elemental Merge and Chaos Bug
-   Hunt cost 3, every other game costs 1. ₩1,000 buys 5 tokens in the Token Shop.
+   5 free tokens per day (unused ones stack up). Elemental Merge, Chaos Bug
+   Hunt, DOOM and Rocket Forge cost 3, every other game costs 1. ₩1,000 buys
+   5 tokens in the Token Shop.
    Server mode (public site): balances live in Supabase and the Buy button
    shows a live Alipay QR — tokens arrive automatically when the payment lands.
    Offline fallback (no backend configured or unreachable): the old
