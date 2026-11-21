@@ -1,6 +1,6 @@
 # Retro Arcade
 
-A neon arcade hub — 12 games, one cabinet. Open `index.html` and play.
+A neon arcade hub — 13 games, one cabinet. Open `index.html` and play.
 
 ## Games
 
@@ -18,6 +18,7 @@ A neon arcade hub — 12 games, one cabinet. Open `index.html` and play.
 | 10 | 😈 DOOM | Neon arena shooter — waves of demons, weapon drops, rarity loot |
 | 11 | 🐉 Creature Clash | Draft a trio and battle with attribute matchups — attack, swap, self-destruct |
 | 12 | 🐲 Dragon Flight | Flappy dragon — dodge obstacles, grab rings, solo or up to 3 players |
+| 13 | 🚀 Rocket Forge | Design rockets from parts, fly to the Kármán line — heat, debris, parachute landing |
 
 ## Tokens
 
@@ -36,4 +37,4 @@ Double-click `index.html`, or serve it:
 bash start.sh          # → http://127.0.0.1:8137/
 ```
 
-Keys `1`–`12` launch games from the hub.
+Keys `1`–`13` launch games from the hub.
