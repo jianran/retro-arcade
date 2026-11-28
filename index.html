@@ -118,11 +118,6 @@ h2{
 }
 .btn-play:hover{filter:brightness(1.12);transform:translateY(-1px)}
 .btn-play:active{transform:translateY(0)}
-.btn-open{
-  background:transparent;color:var(--dim);border:1px solid var(--border);
-  padding-left:14px;padding-right:14px;
-}
-.btn-open:hover{color:var(--text);border-color:var(--dim);transform:translateY(-1px)}
 
 /* ---- footer ---- */
 footer{max-width:1180px;margin:0 auto;padding:26px 20px 48px;color:var(--dim);font-size:13px;line-height:2;border-top:1px solid var(--border)}
@@ -368,7 +363,6 @@ grid.innerHTML = GAMES.map(g => `
     <div class="actions">
       <span class="cost">🪙 ${g.cost}</span>
       <button class="btn-play" data-id="${g.id}">▶ Play</button>
-      <button class="btn-open" data-id="${g.id}" title="Open in a new tab">↗</button>
     </div>
   </article>`).join("");
 
@@ -615,13 +609,11 @@ function exit(){
   hideLoader();
   if (musicOn()) bgm.play().catch(() => {});   // back to the arcade lobby
 }
-function openTab(g){ window.open(g.url, "_blank", "noopener"); }
-
 grid.addEventListener("click", e => {
   const btn = e.target.closest("button[data-id]");
   if (!btn) return;
   const g = GAMES.find(x => x.id === btn.dataset.id);
-  if (btn.classList.contains("btn-open")) openTab(g); else play(g);
+  play(g);
 });
 
 frame.addEventListener("load", () => { if (!player.hidden) hideLoader(); });
