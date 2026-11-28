@@ -2388,12 +2388,12 @@ $('resetBtn').addEventListener('click',()=>{
   }
   disarmReset();
   if(phase==='flight')backToBuilder();
-  // Fresh progress — but lab discoveries (secret parts + upgrades) are permanent
-  save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted,secretParts:save.secretParts||[],upgrades:save.upgrades||[],flights:[]};
+  // Full reset — lab discoveries are wiped along with the progress
+  save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted,secretParts:[],upgrades:[],flights:[]};
   saveState();
   B.parts=[];B.selected=-1;B.picked=null;B.undoStack.length=0;
   Snd.muted=save.muted;
-  buildPalette();   // re-render so preserved secret parts stay in the palette
+  buildPalette();   // re-render so wiped secret parts leave the palette
   updateBuilderUI();
 });
 
