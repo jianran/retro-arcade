@@ -1054,10 +1054,10 @@ function showDuelPicker(){
       }
     }catch(e){}
     const icon=p.isNPC?'🤖':'👤';
-    const locked=pWave>0&&pWave<S.wave;
-    const click=locked?"toast('🔒 Cannot challenge a lower-ranked opponent')":`startDuel('${p.id}')`;
+    const locked=pWave>0&&pWave<=S.wave;
+    const click=locked?"toast('🔒 Cannot challenge an equal or lower-ranked opponent')":`startDuel('${p.id}')`;
     rows+=`<div onclick="${click}" style="cursor:${locked?'not-allowed':'pointer'};opacity:${locked?.45:1};padding:10px 14px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:8px;transition:all .15s;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-weight:600;">${icon} ${p.name}${locked?' <span style="font-size:10px;color:#ff6666;">🔒 below your rank</span>':''}</span>
+      <span style="font-weight:600;">${icon} ${p.name}${locked?' <span style="font-size:10px;color:#ff6666;">🔒 equal or below your rank</span>':''}</span>
       <span style="display:flex;gap:8px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);">${diff}</span><span style="font-size:11px;color:var(--text-dim);">${armyInfo}</span></span>
     </div>`;
   }
@@ -1070,7 +1070,7 @@ function showDuelPicker(){
       </div>
       <p style="font-size:12px;">Your army vs their army — auto-battle!</p>
       <div style="overflow-y:auto;max-height:58vh;margin:6px -12px;padding:0 12px;">${rows}</div>
-      <p style="font-size:10px;color:var(--text-dim);margin-top:8px;">Place units on grid before dueling! Beat a higher-rank NPC → switch ranks · up to 1000 🪙</p>
+      <p style="font-size:10px;color:var(--text-dim);margin-top:8px;">Only higher-ranked opponents can be challenged! Beat a higher-rank NPC → switch ranks · up to 1000 🪙</p>
       <button onclick="hideOverlay()" style="margin-top:8px;padding:8px 20px;border:1px solid #666;background:transparent;color:#aaa;border-radius:6px;cursor:pointer;">Cancel</button>
     </div></div>`;
 }
@@ -1083,7 +1083,7 @@ function startDuel(oppId){
   if(!opp.isNPC){
     try{const r=localStorage.getItem(saveKey(opp.id));if(r)oppWave=JSON.parse(r).wave||0;}catch(e){}
   }
-  if(oppWave>0&&oppWave<S.wave){toast('🔒 Cannot challenge a lower-ranked opponent');return;}
+  if(oppWave>0&&oppWave<=S.wave){toast('🔒 Cannot challenge an equal or lower-ranked opponent');return;}
   // Load opponent army
   S.duelOpponent=opp;
   S.duelOppUnits=[];S.duelOppBench=[];
