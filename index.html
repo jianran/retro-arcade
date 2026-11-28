@@ -201,6 +201,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
   transition:transform .12s,filter .12s;
 }
 .shop-buy:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.shop-buy:disabled{opacity:.55;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
 .paid-btn{background:linear-gradient(135deg,#4ade80,#22c55e);color:#06210f;box-shadow:0 0 24px rgba(74,222,128,.3);margin-top:4px}
 .shop-qr{display:flex;flex-direction:column;align-items:center;gap:10px}
 .shop-qr[hidden]{display:none}
@@ -354,6 +355,7 @@ const shopBalance = document.getElementById("shopBalance");
 const shopInfo = document.getElementById("shopInfo");
 const shopMsg = document.getElementById("shopMsg");
 const shopQr = document.getElementById("shopQr");
+const btnPay = document.getElementById("btnPay");
 const qrWrap = document.getElementById("qrWrap");
 const qrStatic = document.getElementById("qrStatic");
 const qrHint = document.getElementById("qrHint");
@@ -382,7 +384,7 @@ grid.innerHTML = GAMES.map(g => `
    shows a live Alipay QR — tokens arrive automatically when the payment lands.
    Offline fallback (no backend configured or unreachable): the old
    localStorage wallet with signed top-up codes keeps working. */
-const DAILY = 5, BUY = 5;
+const DAILY = 5, BUY = 5, MAX_TOKENS = 25;
 const SUPABASE_URL = "";   // filled at go-live, together with the Alipay keys
 const SUPABASE_ANON = "";  // (backend schema + functions are already deployed)
 // Public verification key for offline top-up redeem strings. Codes are signed
@@ -403,7 +405,7 @@ const b64urlToBytes = s => {
 const bal = () => parseInt(localStorage.getItem(LS_T) || "0", 10) || 0;
 let currentBal = 0;                    // the balance the UI shows (either source)
 let backendOn = false;                 // true once Supabase answers
-const setBal = n => { currentBal = n; localStorage.setItem(LS_T, String(Math.max(0, n))); updateTokenUI(); };
+const setBal = n => { currentBal = Math.min(MAX_TOKENS, n); localStorage.setItem(LS_T, String(Math.max(0, currentBal))); updateTokenUI(); };
 const usedCodes = () => { try { return JSON.parse(localStorage.getItem(LS_U) || "[]"); } catch (e) { return []; } };
 
 const deviceId = () => {
@@ -440,6 +442,12 @@ async function sbInit(){
 function updateTokenUI(){
   tokenCount.textContent = currentBal;
   shopBalance.textContent = currentBal;
+  // Wallet cap: once another purchase would push past MAX_TOKENS, the buy
+  // button turns into a wordless 🔒 and can't be clicked.
+  const locked = currentBal + BUY > MAX_TOKENS;
+  btnPay.disabled = locked;
+  btnPay.textContent = locked ? "🔒" : "💰 Buy 5 tokens — ₩1,000";
+  if (locked) shopQr.hidden = true;
 }
 async function refreshDaily(){
   if (backendOn || await sbInit()){ updateTokenUI(); return; }
