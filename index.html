@@ -61,6 +61,13 @@ h1 .accent{
   text-shadow:none;
   filter:drop-shadow(0 0 14px rgba(46,230,255,.45));
 }
+h1 .accent2{
+  background:linear-gradient(90deg,var(--cyan),var(--gold));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  text-shadow:none;
+  filter:drop-shadow(0 0 14px rgba(255,209,102,.45));
+}
 @keyframes flicker{
   0%,100%{opacity:1}
   92%{opacity:1} 93%{opacity:.7} 94%{opacity:1}
@@ -253,7 +260,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 
 <header>
   <div class="kicker">★ Insert Coin ★</div>
-  <h1>🪙 RETRO <span class="accent">ARCADE</span> 🪙</h1>
+  <h1>🪙 <span class="accent2">RETRO</span> <span class="accent">ARCADE</span> 🪙</h1>
   <p class="sub">13 Games · One Cabinet</p>
 </header>
 
