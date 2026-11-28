@@ -743,9 +743,12 @@ function getProfiles(){
 }
 function saveProfiles(arr){localStorage.setItem(PROFILES_KEY,JSON.stringify(arr));}
 function saveKey(id){return'elem_merge_save_'+id;}
+let profileSeq=0;
 function createProfile(name){
   const profiles=getProfiles();
-  const p={id:Date.now().toString(36),name,created:Date.now()};
+  // Date.now() alone can collide when several accounts are made in the same
+  // millisecond — the sequence suffix guarantees uniqueness.
+  const p={id:Date.now().toString(36)+'_'+(++profileSeq),name,created:Date.now()};
   profiles.push(p);saveProfiles(profiles);return p;
 }
 function saveGame(){
@@ -1037,10 +1040,11 @@ function showDuelPicker(){
   profiles.sort((a,b)=>(a.isNPC?1:0)-(b.isNPC?1:0)||(a.wave||0)-(b.wave||0));
   let rows='';
   for(const p of profiles){
-    let armyInfo='No army',diff='';
+    let armyInfo='No army',diff='',pWave=p.isNPC?(p.wave||0):0;
     try{
       const r=localStorage.getItem(saveKey(p.id));
       if(r){const d=JSON.parse(r);const cnt=d.grid?.flat().filter(u=>u).length||0;armyInfo='Wave '+d.wave+' • '+cnt+' units';
+        pWave=d.wave||0;
         const w=d.wave||0;
         if(w<=5)diff='🟢 Easy';
         else if(w<=15)diff='🟡 Medium';
@@ -1050,8 +1054,8 @@ function showDuelPicker(){
       }
     }catch(e){}
     const icon=p.isNPC?'🤖':'👤';
-    const locked=p.isNPC&&(p.wave||0)<S.wave;
-    const click=locked?"toast('🔒 Cannot challenge a lower-ranked NPC')":`startDuel('${p.id}')`;
+    const locked=pWave>0&&pWave<S.wave;
+    const click=locked?"toast('🔒 Cannot challenge a lower-ranked opponent')":`startDuel('${p.id}')`;
     rows+=`<div onclick="${click}" style="cursor:${locked?'not-allowed':'pointer'};opacity:${locked?.45:1};padding:10px 14px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:8px;transition:all .15s;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-weight:600;">${icon} ${p.name}${locked?' <span style="font-size:10px;color:#ff6666;">🔒 below your rank</span>':''}</span>
       <span style="display:flex;gap:8px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);">${diff}</span><span style="font-size:11px;color:var(--text-dim);">${armyInfo}</span></span>
@@ -1073,8 +1077,13 @@ function showDuelPicker(){
 
 function startDuel(oppId){
   const opp=getProfiles().find(p=>p.id===oppId);if(!opp)return;
-  // No dueling weaker NPCs — only equal or higher ranks
-  if(opp.isNPC&&(opp.wave||0)<S.wave){toast('🔒 Cannot challenge a lower-ranked NPC');return;}
+  // No dueling weaker opponents — only equal or higher ranks.
+  // NPC ranks live on the profile; player ranks live in their save.
+  let oppWave=opp.wave||0;
+  if(!opp.isNPC){
+    try{const r=localStorage.getItem(saveKey(opp.id));if(r)oppWave=JSON.parse(r).wave||0;}catch(e){}
+  }
+  if(oppWave>0&&oppWave<S.wave){toast('🔒 Cannot challenge a lower-ranked opponent');return;}
   // Load opponent army
   S.duelOpponent=opp;
   S.duelOppUnits=[];S.duelOppBench=[];
@@ -1091,9 +1100,9 @@ function startDuel(oppId){
       if(d.bench)for(const bd of d.bench){const u=deser(bd,-1,-1);u.attackCooldown=0;S.duelOppBench.push(u);}
     }
   }catch(e){}
-  if(S.duelOppUnits.length===0){toast(opp.name+' has no army to duel!');return;}
+  if(S.duelOppUnits.length===0){S.duelOpponent=null;S.duelOppUnits=[];S.duelOppBench=[];toast(opp.name+' has no army to duel!');return;}
   // Check player has units
-  if(!S.grid.some(r=>r.some(u=>u))){toast('Place units on your grid first!');return;}
+  if(!S.grid.some(r=>r.some(u=>u))){S.duelOpponent=null;S.duelOppUnits=[];S.duelOppBench=[];toast('Place units on your grid first!');return;}
 
   hideOverlay();initAudio();
   S.phase='combat';S.duelMode=true;S.combatTime=0;
