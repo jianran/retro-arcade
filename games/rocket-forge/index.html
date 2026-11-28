@@ -256,6 +256,7 @@ body.flying #hint{display:none}
     <div class="btnrow">
       <button class="btn ghost" id="preset1">Preset: Hopper</button>
       <button class="btn ghost" id="preset2">Preset: Two-Stage</button>
+      <button class="btn ghost" id="preset3">Preset: Heavy</button>
     </div>
     <div class="btnrow">
       <button class="btn ghost" id="undoBtn">Undo</button>
@@ -264,6 +265,7 @@ body.flying #hint{display:none}
       <button class="btn ghost" id="loadBtn">Load</button>
     </div>
     <h2>Missions</h2>
+    <div class="record">Max 3 mission completions per flight</div>
     <div id="missions"></div>
     <details>
       <summary>How to play</summary>
@@ -405,10 +407,14 @@ const PARTS={
   engineS:  {n:'Mite',       c:350, m:180, t:15000, i:250, h:3.8, desc:'Small engine. 15 kN thrust, 250 s specific impulse.'},
   engineM:  {n:'Thud',       c:700, m:420, t:65000, i:280, h:5.0, desc:'Medium engine. 65 kN thrust, 280 s specific impulse.'},
   engineL:  {n:'Panther',    c:1400,m:900, t:160000,i:305, h:5.6, desc:'Heavy engine. 160 kN thrust, 305 s specific impulse.'},
+  titan:    {n:'Titan',      c:3200,m:2000,t:400000,i:315, h:7.4, desc:'Heavy-lift engine. 400 kN thrust at 315 s — for rockets with ambitions.'},
+  srb:      {n:'Booster SRB',c:1100,m:700, f:7000,t:90000, i:250, h:8.2, stat:'90 kN', desc:'Solid rocket booster. Cheap punch: 90 kN and its own propellant, burned together with its stage.'},
+  rcsTank:  {n:'RCS Tank',   c:200, m:60,            h:2.2, stat:'+40 RCS', desc:'Extra monopropellant: +40 kg of RCS fuel for steering and the autopilot.'},
+  science:  {n:'Science Pod',c:600, m:400,           h:3.4, stat:'data ¤', desc:'Instruments that sell data after flight: +¤200 above 30 km, +¤600 above 100 km.'},
   decoupler:{n:'Decoupler',  c:150, m:120,           h:1.6, desc:'Splits the rocket into stages. SPACE jettisons everything below it.'},
   fin:      {n:'Fin',        c:80,  m:60,            h:0,   desc:'Stabilizer fin. Adds a little drag but a lot of looks.'},
 };
-const PALETTE_ORDER=['capsule','shield','nose','tankS','tankM','tankL','engineS','engineM','engineL','decoupler','fin'];
+const PALETTE_ORDER=['capsule','shield','nose','tankS','tankM','tankL','engineS','engineM','engineL','titan','srb','rcsTank','science','decoupler','fin'];
 const MISSIONS=[
   {k:'test',  n:'Test Flight',   d:'Reach 5 km',                                    r:400,  check:r=>r.maxAlt>=5000},
   {k:'high',  n:'High Altitude', d:'Reach 30 km',                                   r:800,  check:r=>r.maxAlt>=30000},
@@ -435,6 +441,7 @@ const MISSIONS=[
 const PRESETS={
   hopper:['nose','capsule','shield','decoupler','tankM','engineL'],
   two:   ['nose','capsule','decoupler','tankS','engineS','decoupler','tankM','engineL'],
+  heavy: ['nose','capsule','shield','decoupler','tankL','titan'],
 };
 
 /* ================= persistence ================= */
@@ -553,7 +560,7 @@ function canPlace(type,k,types){
   if(type==='nose')return k===0&&(n===0||types[0]!=='nose');
   if(type==='shield')return k>0&&types[k-1]==='capsule'; // ablative shield sits under the pod
   if(k===0&&n>0&&types[0]==='nose')return false; // nothing may sit above the nose
-  if(type==='engine'){
+  if(PARTS[type].t){ // engines & boosters: their stage must contain a tank (or the booster's own propellant)
     const [a,b]=stageSegment(arr,k),seg=arr.slice(a,b+1);
     return seg.some(t=>PARTS[t].f); // stage must contain a tank
   }
@@ -645,13 +652,41 @@ function drawPart(g,type,cx,yTop,w,h){
       g.fillStyle=stripe;g.fillRect(6,h*0.52,w-12,Math.max(4,h*0.09));
       g.fillStyle='#7c889c';g.fillRect(4,h-8,w-8,4);g.fillRect(4,3,w-8,4);
       break;}
-    case 'engineS':case 'engineM':case 'engineL':
+    case 'engineS':case 'engineM':case 'engineL':case 'titan':
       g.fillStyle='#4a5468';rr(g,5,3,w-10,h*0.40,4);g.fill();
       g.fillStyle='#232a38';g.beginPath();g.moveTo(7,h*0.40);g.lineTo(w-7,h*0.40);
       g.lineTo(w-2,h-2);g.lineTo(2,h-2);g.closePath();g.fill();
       g.strokeStyle='#141a26';g.lineWidth=lw;g.stroke();
       g.fillStyle='#0d1119';g.beginPath();
       g.ellipse(w/2,h-2,Math.max(4,w*0.26),Math.max(1.5,w*0.07),0,0,7);g.fill();
+      break;
+    case 'srb':
+      g.fillStyle='#c96a2e';rr(g,4,3,w-8,h-6,5);g.fill();
+      g.strokeStyle='#8a4217';g.lineWidth=lw;g.stroke();
+      g.fillStyle='#a34e1e';
+      g.fillRect(5,h*0.18,w-10,Math.max(4,h*0.1));
+      g.fillRect(5,h*0.55,w-10,Math.max(4,h*0.1));
+      g.fillStyle='#232a38';g.beginPath();g.moveTo(7,h*0.78);g.lineTo(w-7,h*0.78);
+      g.lineTo(w-2,h-2);g.lineTo(2,h-2);g.closePath();g.fill();
+      g.strokeStyle='#141a26';g.lineWidth=lw;g.stroke();
+      g.fillStyle='#0d1119';g.beginPath();
+      g.ellipse(w/2,h-2,Math.max(4,w*0.26),Math.max(1.5,w*0.07),0,0,7);g.fill();
+      break;
+    case 'rcsTank':
+      g.fillStyle='#c9d2de';rr(g,4,3,w-8,h-6,4);g.fill();
+      g.strokeStyle='#7c889c';g.lineWidth=lw;g.stroke();
+      g.fillStyle='#4fd8ff';g.fillRect(6,h*0.45,w-12,Math.max(4,h*0.1));
+      g.fillStyle='#2b3a55';
+      g.fillRect(2,h*0.2,4,5);g.fillRect(w-6,h*0.2,4,5);
+      g.fillRect(2,h*0.7,4,5);g.fillRect(w-6,h*0.7,4,5);
+      break;
+    case 'science':
+      g.fillStyle='#dfe7f2';rr(g,4,3,w-8,h-6,5);g.fill();
+      g.strokeStyle='#94a3b8';g.lineWidth=lw;g.stroke();
+      g.fillStyle='#d9b34a';g.fillRect(7,h*0.2,w-14,Math.max(5,h*0.16));
+      g.fillStyle='#4fd8ff';g.beginPath();g.arc(w/2,h*0.62,Math.max(3,w*0.1),0,7);g.fill();
+      g.strokeStyle='#2b3a55';g.lineWidth=1.5;
+      g.beginPath();g.moveTo(w/2,h*0.3);g.lineTo(w/2,h-2);g.stroke();
       break;
     case 'decoupler':
       g.fillStyle='#39415a';rr(g,3,h/2-6,w-6,12,3);g.fill();
@@ -792,11 +827,13 @@ function initFlight(types){
   F.maxAccel=0;F.timeInSpace=0;F.stagesUsed=0;
   F.paused=false;F.pauseAt=0;
   F.hull=100;F.dmgFlash=0;F.hazards=[];
-  F.x=0;F.vx=0;F.keyL=false;F.keyR=false;F.keyD=false;F.rcs=RCS_MAX;F.ai=false;F.dist=0;
-  F.rcsWarned=false;F.aiWarned=false;F.maneuvering=false;F.aiCmd={l:0,r:0,d:0};F.chuteWarned=false;
+  F.x=0;F.vx=0;F.keyL=false;F.keyR=false;F.keyD=false;F.rcs=RCS_MAX;F.ai=false;F.dist=0;  F.rcsWarned=false;F.aiWarned=false;F.maneuvering=false;F.aiCmd={l:0,r:0,d:0};F.chuteWarned=false;
   F.temp=20;F.maxTemp=20;F.chuteLost=false;F.tempW1=false;F.tempW2=false;F.tempW3=false;
   F.shieldMax=F.parts.filter(t=>t==='shield').length*100;
   F.shield=F.shieldMax; // ablative protection only if the part is mounted
+  F.rcsMax=80+F.parts.filter(t=>t==='rcsTank').length*40;
+  F.rcs=F.rcsMax; // capsule reserve + RCS tanks
+  F.sciBonus=0;F.skippedMissions=0;
   F.troubleDue=Math.random()<0.55;F.troubleAt=30+Math.random()*50; // big scripted threat on ~55% of flights
   F.recordAtLaunch=save.record;F.brokeRecord=false;F.recordBonus=0;
   $('shieldBar').style.width='100%';
@@ -974,13 +1011,22 @@ function endFlight(){
     save.funds+=500;
     if(!F.brokeRecord)F.brokeRecord=true;
   }
+  // science pods sell their data after the flight
+  if(F.designTypes.includes('science')&&r.maxAlt>=30000){
+    F.sciBonus=r.spaced?600:200;
+    save.funds+=F.sciBonus;
+  }
   if(r.maxAlt>save.record){save.record=Math.round(r.maxAlt);}
   if(r.spaced&&(save.bestCost===null||F.cost<save.bestCost))save.bestCost=F.cost;
-  const earned=[];let total=0;
+  const earned=[];let total=0,skipped=0;
   for(const mi of MISSIONS){
     if(save.missions.includes(mi.k))continue;
-    if(mi.check(r)){save.missions.push(mi.k);earned.push(mi);total+=mi.r;}
+    if(mi.check(r)){
+      if(earned.length<3){save.missions.push(mi.k);earned.push(mi);total+=mi.r;}
+      else skipped++; // mission cap: max 3 completions per flight
+    }
   }
+  F.skippedMissions=skipped;
   save.funds+=total;saveState();
   F.earnedTotal=total;F.earnedList=earned;F.result=r;
 }
@@ -1148,9 +1194,11 @@ function showOverlay(){
     (r.spaced?'<tr><td>Status</td><td>Kármán line crossed ✓</td></tr>':'');
   let mh='';
   for(const mi of F.earnedList)mh+='<div class="mline"><span class="ok">✓ NEW</span> '+mi.n+' — ¤'+mi.r+'</div>';
+  if(F.skippedMissions>0)mh+='<div class="mline">Mission cap (3 per flight) — '+F.skippedMissions+' more not counted this time</div>';
   $('ovMissions').innerHTML=mh||'<div class="mline">No new missions completed.</div>';
   $('ovFunds').innerHTML=
     (F.recordBonus>0?'★ New altitude record <b>+¤'+F.recordBonus+'</b> · ':'')+
+    (F.sciBonus>0?'Science data <b>+¤'+F.sciBonus+'</b> · ':'')+
     (F.earnedTotal>0?'Missions paid <b>¤'+fmt(F.earnedTotal)+'</b> — ':'')+
     'Funds now <b>¤'+fmt(save.funds)+'</b>';
   $('headerRecord').textContent=fmt(save.record)+' m';
@@ -1699,6 +1747,30 @@ document.addEventListener('keydown',e=>{
   else if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'&&phase==='build'){e.preventDefault();undo();}
   else if(phase==='flight'&&e.key>='1'&&e.key<='7')setWarp([1,2,4,8,10,20,100][+e.key-1]);
 });
+
+/* Cheat: typing 672400 grants infinite funds */
+let cheatSeq='',cheatSeqTimer=null;
+function cheatToast(msg){
+  const t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 22px;background:rgba(0,0,0,.8);border:1px solid var(--warn);border-radius:10px;color:var(--warn);font-size:14px;font-weight:700;transition:opacity .5s;pointer-events:none;font-family:var(--font-disp),sans-serif;';
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),600);},1600);
+}
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
+  if(!/^[0-9]$/.test(e.key))return;
+  cheatSeq+=e.key;if(cheatSeq.length>8)cheatSeq=cheatSeq.slice(-8);
+  clearTimeout(cheatSeqTimer);
+  cheatSeqTimer=setTimeout(()=>{cheatSeq='';},1600);
+  if(cheatSeq.endsWith('672400')){
+    cheatSeq='';
+    save.funds=9999999999;
+    saveState();updateFundsUI();
+    cheatToast('💰 Infinite funds!');
+  }
+});
 document.addEventListener('keyup',e=>{
   if(e.code==='ArrowLeft'||e.code==='KeyA')flight.keyL=false;
   if(e.code==='ArrowRight'||e.code==='KeyD')flight.keyR=false;
@@ -1718,7 +1790,7 @@ function buildPalette(){
     const card=document.createElement('div');
     card.className='pcard';card.dataset.p=t;
     const ic=makeIcon(t);
-    const stat=d.t?fmt(d.t/1000)+' kN':d.f?fmt(d.f)+' kg':d.i?d.i+' s ISP':'';
+    const stat=d.stat||(d.t?fmt(d.t/1000)+' kN':d.f?fmt(d.f)+' kg':d.i?d.i+' s ISP':'');
     card.innerHTML='<div class="pcname"></div><div class="pccost">¤'+d.c+'</div>'+(stat?'<div class="pcstat">'+stat+'</div>':'');
     card.insertBefore(ic,card.firstChild);
     const nameEl=card.querySelector('.pcname');
@@ -1747,6 +1819,7 @@ function setPreset(name){
 }
 $('preset1').addEventListener('click',()=>setPreset('hopper'));
 $('preset2').addEventListener('click',()=>setPreset('two'));
+$('preset3').addEventListener('click',()=>setPreset('heavy'));
 $('undoBtn').addEventListener('click',undo);
 $('clearBtn').addEventListener('click',()=>{if(!B.parts.length)return;pushUndo();B.parts=[];B.selected=-1;updateBuilderUI();});
 $('saveBtn').addEventListener('click',()=>{if(B.parts.length){save.design=B.parts.slice();saveState();Snd.chime();}updateBuilderUI();});
@@ -1865,7 +1938,7 @@ function updateHUD(){
   const sh=$('hudShield');
   sh.textContent=F.shieldMax>0?'SHLD '+Math.ceil(F.shield/F.shieldMax*100)+'%':'SHLD 0';
   sh.style.color=F.shieldMax>0?'#eaf2ff':'#5a6a85';
-  $('rcsBar').style.width=clamp(F.rcs/RCS_MAX*100,0,100)+'%';
+  $('rcsBar').style.width=clamp(F.rcs/F.rcsMax*100,0,100)+'%';
   $('hudRcs').textContent='RCS '+Math.ceil(F.rcs);
   const pad=$('hudPad');
   const ax=Math.abs(F.x);
