@@ -1117,7 +1117,7 @@ function initFlight(types){
   F.rcsMax=Math.round((80+F.parts.filter(t=>t==='rcsTank').length*40+F.parts.filter(t=>t==='probe').length*200+F.parts.filter(t=>t==='rcsXL').length*90)*(hasUp('rcs20')?1.2:1));
   F.rcs=F.rcsMax; // capsule reserve + RCS tanks
   F.sciBonus=0;F.skippedMissions=0;F.labUses=0;F.cargoUses=0;F.obsUses=0;F.crewUses=0;
-  F.troubleDue=Math.random()<0.55;F.troubleAt=30+Math.random()*50; // big scripted threat on ~55% of flights
+  F.troubleDue=Math.random()<0.85;F.troubleAt=12+Math.random()*28; // big scripted threat on ~85% of flights, early
   F.recordAtLaunch=save.record;F.brokeRecord=false;F.recordBonus=0;
   $('shieldBar').style.width='100%';
   $('btnAI').classList.remove('on');$('btnAI').textContent='AI [Q]';
@@ -1386,23 +1386,23 @@ function explosionBurst(){
 function hazardRolls(dt){
   if(window.RF_NO_HAZARDS)return;
   const F=flight,a=F.alt;
-  if(a<3000&&Math.random()<dt*0.002)spawnHazard('bird');
-  if(a<25000&&Math.random()<dt*0.0008)spawnHazard('rocket');
-  if(a>2000&&a<9000&&Math.random()<dt*0.003)spawnHazard('storm');
-  if(a>15000&&Math.random()<dt*0.004)spawnHazard('meteor');
-  if(a>100000&&Math.random()<dt*0.003)spawnHazard('junk');
+  if(a<3000&&Math.random()<dt*0.02)spawnHazard('bird');
+  if(a<25000&&Math.random()<dt*0.006)spawnHazard('rocket');
+  if(a>2000&&a<9000&&Math.random()<dt*0.025)spawnHazard('storm');
+  if(a>15000&&Math.random()<dt*0.035)spawnHazard('meteor');
+  if(a>100000&&Math.random()<dt*0.03)spawnHazard('junk');
 }
 function spawnHazard(kind,aimed,big){
   const F=flight;
   if(F.hazards.length>12)return;
   const h={kind,x:0,y:0,vx:0,vy:0,r:0,life:0,hit:aimed||false,struck:false,near:false,passed:false,seed:Math.random(),big:!!big};
-  if(!aimed){ // random encounters keep their own odds
+  if(!aimed){ // random encounters keep their own odds — most actually come at you
     switch(kind){
-      case 'bird':h.hit=Math.random()<0.15;break;
-      case 'rocket':h.hit=Math.random()<0.12;break;
-      case 'storm':h.hit=Math.random()<0.5;break;
-      case 'meteor':h.hit=Math.random()<0.3;break;
-      case 'junk':h.hit=Math.random()<0.25;break;
+      case 'bird':h.hit=Math.random()<0.55;break;
+      case 'rocket':h.hit=Math.random()<0.45;break;
+      case 'storm':h.hit=Math.random()<0.85;break;
+      case 'meteor':h.hit=Math.random()<0.7;break;
+      case 'junk':h.hit=Math.random()<0.7;break;
     }
   }
   switch(kind){
@@ -2388,10 +2388,12 @@ $('resetBtn').addEventListener('click',()=>{
   }
   disarmReset();
   if(phase==='flight')backToBuilder();
-  save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted,secretParts:[],upgrades:[],flights:[]};
+  // Fresh progress — but lab discoveries (secret parts + upgrades) are permanent
+  save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted,secretParts:save.secretParts||[],upgrades:save.upgrades||[],flights:[]};
   saveState();
   B.parts=[];B.selected=-1;B.picked=null;B.undoStack.length=0;
   Snd.muted=save.muted;
+  buildPalette();   // re-render so preserved secret parts stay in the palette
   updateBuilderUI();
 });
 
