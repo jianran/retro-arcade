@@ -965,8 +965,10 @@ function showDuelPicker(){
       }
     }catch(e){}
     const icon=p.isNPC?'🤖':'👤';
-    rows+=`<div onclick="startDuel('${p.id}')" style="cursor:pointer;padding:10px 14px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:8px;transition:all .15s;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-weight:600;">${icon} ${p.name}</span>
+    const locked=p.isNPC&&(p.wave||0)<S.wave;
+    const click=locked?"toast('🔒 Cannot challenge a lower-ranked NPC')":`startDuel('${p.id}')`;
+    rows+=`<div onclick="${click}" style="cursor:${locked?'not-allowed':'pointer'};opacity:${locked?.45:1};padding:10px 14px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:8px;transition:all .15s;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-weight:600;">${icon} ${p.name}${locked?' <span style="font-size:10px;color:#ff6666;">🔒 below your rank</span>':''}</span>
       <span style="display:flex;gap:8px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);">${diff}</span><span style="font-size:11px;color:var(--text-dim);">${armyInfo}</span></span>
     </div>`;
   }
@@ -975,13 +977,15 @@ function showDuelPicker(){
       <h2>⚔️ Challenge to a Duel</h2>
       <p style="font-size:12px;">Your army vs their army — auto-battle!</p>
       ${rows}
-      <p style="font-size:10px;color:var(--text-dim);margin-top:8px;">Winner +100 🪙 • Place units on grid before dueling!</p>
+      <p style="font-size:10px;color:var(--text-dim);margin-top:8px;">Place units on grid before dueling! Beat a higher-rank NPC → switch ranks · up to 1000 🪙</p>
       <button onclick="hideOverlay()" style="margin-top:8px;padding:8px 20px;border:1px solid #666;background:transparent;color:#aaa;border-radius:6px;cursor:pointer;">Cancel</button>
     </div></div>`;
 }
 
 function startDuel(oppId){
   const opp=getProfiles().find(p=>p.id===oppId);if(!opp)return;
+  // No dueling weaker NPCs — only equal or higher ranks
+  if(opp.isNPC&&(opp.wave||0)<S.wave){toast('🔒 Cannot challenge a lower-ranked NPC');return;}
   // Load opponent army
   S.duelOpponent=opp;
   S.duelOppUnits=[];S.duelOppBench=[];
@@ -1024,9 +1028,22 @@ function endDuel(playerWon){
   forEachUnit(u=>{u.hp=u.maxHp;});
 
   if(playerWon){
-    S.gold+=100;S.stats.totalGold+=100;
-    toast('⚔️ Victory! +100 🪙');
-    showReward(100,true);
+    let reward=100, rankUp='';
+    const opp=S.duelOpponent;
+    if(opp&&opp.isNPC){
+      const oppWave=opp.wave||1;
+      // Reward scales with the NPC's rank, capped at 1000
+      reward=Math.min(1000,100+oppWave*12);
+      if(oppWave>S.wave){
+        // Beat a higher-ranked NPC → switch ranks
+        S.wave=oppWave;
+        rankUp=' Rank up: Wave '+oppWave+'!';
+        updateHighScore(activeProfile?.id,activeProfile?.name,S.wave);
+      }
+    }
+    S.gold+=reward;S.stats.totalGold+=reward;
+    toast('⚔️ Victory!'+rankUp+' +'+reward+' 🪙');
+    showReward(reward,true);
   }else{
     toast('💀 Defeated by '+S.duelOpponent.name+'!');
     showReward(0,false);
