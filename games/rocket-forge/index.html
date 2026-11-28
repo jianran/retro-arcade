@@ -252,6 +252,19 @@ body.flying #hint{display:none}
 #podBox .flavor{color:var(--muted);font-style:italic;font-size:12px;margin:10px 0}
 #podClose{margin-top:12px;padding:8px 22px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;cursor:pointer;font-size:13px}
 #podClose:hover{color:var(--fg);border-color:var(--accent2)}
+/* science lab vial */
+#btnVial{font-size:52px;background:none;border:none;cursor:pointer;padding:4px;line-height:1;transition:transform .15s;filter:drop-shadow(0 0 14px rgba(79,216,255,.35))}
+#btnVial:hover:not(:disabled){transform:scale(1.08)}
+#btnVial:disabled{filter:none;cursor:wait}
+#btnVial.shaking{animation:vialShake .4s linear infinite}
+#vialLabel{font-size:12px;color:var(--muted);margin-top:2px}
+#podResult.big{font-size:17px;color:var(--accent2)}
+@keyframes vialShake{
+  0%,100%{transform:rotate(0) translateY(0)}
+  25%{transform:rotate(-7deg) translateY(-3px)}
+  50%{transform:rotate(7deg) translateY(2px)}
+  75%{transform:rotate(-4deg) translateY(-1px)}
+}
 </style>
 
 <header>
@@ -1629,8 +1642,10 @@ function burning(){
 }
 
 /* ================= builder rendering ================= */
+let buildTime=0;
 function drawBuild(rdt){
-  const ppm=fitPpm(),baseY=H*0.9,cx=W/2,tNow=performance.now()/1000;
+  buildTime+=rdt*flight.warp; // the lab's silent x4 makes the scene move faster
+  const ppm=fitPpm(),baseY=H*0.9,cx=W/2,tNow=buildTime;
   drawSky(0,tNow);
   drawClouds(baseY,ppm);
   drawGround(baseY,tNow);
@@ -1873,6 +1888,7 @@ document.addEventListener('keydown',e=>{
   else if(e.code==='KeyP'&&phase==='flight')chuteDeploy();
   else if(e.code==='KeyM')toggleMute();
   else if(e.code==='Escape'){
+    if($('podModal').classList.contains('show')){closePod();return;}
     if(phase==='build'){B.picked=null;B.selected=-1;B.sellMode=false;updateBuilderUI();}
     else togglePause();
   }
@@ -1917,15 +1933,24 @@ function toggleMute(){
 
 /* ================= pod interiors ================= */
 const EXP_COST=100;
-let podType=null;
+let podType=null,podWarpPrev=null,expRunning=false;
 function openPod(t){
   if(phase!=='build')return;
   const d=PARTS[t];if(!d)return;
   podType=t;
+  if(t==='science'){
+    // silent x4 while in the lab — restored on exit
+    podWarpPrev=flight.warp;
+    flight.warp=4;
+  }
   $('podModal').classList.add('show');
   renderPod();
 }
-function closePod(){ $('podModal').classList.remove('show'); podType=null; }
+function closePod(){
+  if(podType==='science'&&podWarpPrev!==null){flight.warp=podWarpPrev;podWarpPrev=null;}
+  $('podModal').classList.remove('show');
+  podType=null;expRunning=false;
+}
 function renderPod(){
   if(!podType)return;
   const t=podType,d=PARTS[t];
@@ -1936,19 +1961,12 @@ function renderPod(){
     const found=save.secretParts.length+save.upgrades.length;
     body='<p class="flavor">'+FLAVOR.science+'</p>'+
       '<p style="font-size:13px">Discovered: <b>'+found+'</b> / '+EXP_POOL.length+' · Funds <b>¤'+fmt(save.funds)+'</b></p>'+
-      '<button class="podbtn primary" id="btnExp">🧪 Run experiment — ¤'+EXP_COST+'</button>'+
+      '<div><button id="btnVial" title="Press the vial">🧪</button><div id="vialLabel">Press the vial — ¤'+EXP_COST+' per experiment</div></div>'+
       '<div id="podResult"></div>'+
       '<div class="podlist" id="podFindings"></div>';
     $('podBody').innerHTML=body;
-    $('btnExp').addEventListener('click',runExperiment);
-    const f=$('podFindings');
-    let fh='<b>Parts unlocked:</b>';
-    if(save.secretParts.length)fh+=save.secretParts.map(s=>'<div>🔬 '+PARTS[s].n+'</div>').join('');
-    else fh+='<div>None yet — run experiments!</div>';
-    fh+='<b>Upgrades:</b>';
-    if(save.upgrades.length)fh+=save.upgrades.map(k=>'<div>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d+'</div>').join('');
-    else fh+='<div>None yet — run experiments!</div>';
-    f.innerHTML=fh;
+    $('btnVial').addEventListener('click',pressVial);
+    renderFindings();
   }else if(t==='capsule'){
     $('podSub').textContent='Flight controls and the mission logbook.';
     body='<div class="podlist" style="font-size:12px">'+
@@ -1978,40 +1996,57 @@ function renderPod(){
     });
   }
 }
-function runExperiment(){
+function renderFindings(){
+  const f=$('podFindings');if(!f)return;
+  let fh='<b>Parts unlocked:</b>';
+  if(save.secretParts.length)fh+=save.secretParts.map(s=>'<div>🔬 '+PARTS[s].n+'</div>').join('');
+  else fh+='<div>None yet — press the vial!</div>';
+  fh+='<b>Upgrades:</b>';
+  if(save.upgrades.length)fh+=save.upgrades.map(k=>'<div>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d+'</div>').join('');
+  else fh+='<div>None yet — press the vial!</div>';
+  f.innerHTML=fh;
+}
+function pressVial(){
+  if(expRunning)return;
   if(save.funds<EXP_COST){$('podResult').textContent='Not enough funds — each experiment costs ¤'+EXP_COST+'.';return;}
-  save.funds-=EXP_COST;
+  expRunning=true;
+  save.funds-=EXP_COST;saveState();updateFundsUI();
+  $('podResult').textContent='';
+  $('podResult').classList.remove('big');
+  const vial=$('btnVial');vial.disabled=true;vial.classList.add('shaking');
+  const delay=3000+Math.floor(Math.random()*2000); // suspense: 3–5 seconds
+  setTimeout(()=>{
+    vial.classList.remove('shaking');vial.disabled=false;
+    resolveExperiment();
+    expRunning=false;
+  },delay);
+}
+function resolveExperiment(){
   const available=EXP_POOL.filter(o=>o.startsWith('part:')?!save.secretParts.includes(o.slice(5)):!save.upgrades.includes(o.slice(3)));
-  let text='';
+  const res=$('podResult');
   if(available.length===0||Math.random()<0.3){
-    text='Nothing Happened';
+    res.textContent='Nothing Happened';
+    res.classList.remove('big');
     B.toast={text:'Nothing Happened',x:W/2,y:H*0.32,until:performance.now()+1800};
     Snd.beep(90,0.25,'triangle',0.08);
   }else{
     const pick=available[Math.floor(Math.random()*available.length)];
     if(pick.startsWith('part:')){
       const t=pick.slice(5);save.secretParts.push(t);
-      text='🔬 New part unlocked: '+PARTS[t].n+'!';
+      res.innerHTML='<span style="font-size:18px">🎉 NEW PART UNLOCKED!!!</span><br>🔬 '+PARTS[t].n+' — '+PARTS[t].desc;
+      res.classList.add('big');
+      B.toast={text:'🎉 NEW PART UNLOCKED!!! '+PARTS[t].n,x:W/2,y:H*0.32,until:performance.now()+2400};
       buildPalette();
     }else{
       const k=pick.slice(3);save.upgrades.push(k);
-      text='🧬 New upgrade: '+UPGRADES[k].n+' — '+UPGRADES[k].d;
+      res.innerHTML='<span style="font-size:18px">🎉 NEW UPGRADE UNLOCKED!!!</span><br>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d;
+      res.classList.add('big');
+      B.toast={text:'🎉 NEW UPGRADE UNLOCKED!!! '+UPGRADES[k].n,x:W/2,y:H*0.32,until:performance.now()+2400};
     }
-    B.toast={text:text,x:W/2,y:H*0.32,until:performance.now()+2400};
     Snd.chime();
   }
   saveState();updateFundsUI();
-  $('podResult').textContent=text;
-  const f=$('podFindings');
-  if(f){
-    let fh='<b>Parts unlocked:</b>';
-    if(save.secretParts.length)fh+=save.secretParts.map(s=>'<div>🔬 '+PARTS[s].n+'</div>').join('');
-    else fh+='<div>None yet — run experiments!</div>';
-    fh+='<b>Upgrades:</b>';
-    if(save.upgrades.length)fh+=save.upgrades.map(k=>'<div>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d+'</div>').join('');
-    else fh+='<div>None yet — run experiments!</div>';
-    f.innerHTML=fh;
-  }
+  renderFindings();
 }
 
 /* ================= wiring ================= */
