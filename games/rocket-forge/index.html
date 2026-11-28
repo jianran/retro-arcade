@@ -2369,32 +2369,18 @@ $('btnAgain').addEventListener('click',()=>{
 $('btnBack').addEventListener('click',backToBuilder);
 $('muteBtn').addEventListener('click',toggleMute);
 // two-click reset: first click arms, second within 3s confirms
-let resetArmed=false,resetTimer=null;
-function disarmReset(){
-  resetArmed=false;
-  clearTimeout(resetTimer);
-  const b=$('resetBtn');
-  b.textContent='⟳ reset';
-  b.classList.remove('armed');
-}
 $('resetBtn').addEventListener('click',()=>{
-  if(!resetArmed){
-    resetArmed=true;
-    const b=$('resetBtn');
-    b.textContent='⟳ really reset?';
-    b.classList.add('armed');
-    resetTimer=setTimeout(disarmReset,3000);
-    return;
-  }
-  disarmReset();
+  if(!confirm('Reset ALL progress? This wipes funds, missions, records, the flight log AND Science Pod discoveries (parts + upgrades).'))return;
   if(phase==='flight')backToBuilder();
   // Full reset — lab discoveries are wiped along with the progress
   save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted,secretParts:[],upgrades:[],flights:[]};
+  try{localStorage.removeItem(SAVE_KEY);}catch(e){}
   saveState();
   B.parts=[];B.selected=-1;B.picked=null;B.undoStack.length=0;
   Snd.muted=save.muted;
   buildPalette();   // re-render so wiped secret parts leave the palette
   updateBuilderUI();
+  B.toast={text:'⟳ Everything reset',x:W/2,y:H*0.32,until:performance.now()+1800};
 });
 
 /* ================= main loop ================= */
