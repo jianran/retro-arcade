@@ -278,6 +278,13 @@ details.rules[open] summary{margin-bottom:10px}
 .wheel-pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:36px;color:var(--gold);z-index:2;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
 .wheeltxt{font-size:17px;font-weight:800;fill:#fff;font-family:'Baloo 2',cursive;pointer-events:none}
 #btn-spin{font-size:17px}
+/* pause */
+#pause-overlay{position:fixed;inset:0;z-index:59;display:none;place-items:center;background:rgba(7,10,22,.78);backdrop-filter:blur(9px);text-align:center;padding:16px}
+#pause-overlay.show{display:grid}
+#pause-overlay h2{margin:14px 0 8px;font-size:30px;color:var(--text)}
+#pause-overlay p{color:var(--muted);font-size:15px;margin:0 0 18px}
+#pause-overlay p b{color:var(--text)}
+.pause-icon{font-size:58px;line-height:1}
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001s !important;transition-duration:.001s !important}
 }
@@ -291,6 +298,7 @@ details.rules[open] summary{margin-bottom:10px}
     </div>
     <div class="topright">
       <div class="chip" id="target">Target: —</div>
+      <button class="iconbtn" id="btn-pause" title="Pause (P)" aria-label="Pause (P)">⏸️</button>
       <button class="iconbtn" id="btn-mute" title="Toggle sound" aria-label="Toggle sound">🔊</button>
     </div>
   </header>
@@ -370,14 +378,14 @@ details.rules[open] summary{margin-bottom:10px}
 
 <div class="modal" id="wheel-modal">
   <div class="mbox wheelbox">
-    <h2>🎡 Wheel of Fortune</h2>
+    <h2 id="wheel-title">🎡 Wheel of Fortune</h2>
     <p class="sub" id="wheel-sub">Spin to choose a lucky player…</p>
     <div class="wheelwrap">
       <div class="wheel-pointer">▼</div>
       <div class="wheel" id="wheel"></div>
     </div>
     <button class="btn bigbtn start" id="btn-spin">🎡 Spin the wheel</button>
-    <p class="note">Spins automatically after 3 seconds</p>
+    <p class="note" id="wheel-note">Spins automatically after 3 seconds</p>
   </div>
 </div>
 
@@ -411,6 +419,14 @@ details.rules[open] summary{margin-bottom:10px}
   <div class="ev-sub" id="ev-sub"></div>
 </div>
 <div id="honey"></div>
+<div id="pause-overlay">
+  <div>
+    <div class="pause-icon">⏸️</div>
+    <h2>Paused</h2>
+    <p>Press <b>P</b> or click anywhere to resume</p>
+    <button class="btn bigbtn" id="btn-resume">▶&nbsp; Resume</button>
+  </div>
+</div>
 <canvas id="confetti"></canvas>
 
 <script>
@@ -692,6 +708,7 @@ async function rollDice(seq){
 // The Bot (solo mode): bombs human chains now and then, otherwise draws sensibly.
 async function aiAct(seq){
   await wait(900+Math.random()*600);
+  await gatePause();
   if(seq!==state.seq||state.over||state.phase!=='acting') return;
   if(state.items[2].bombs>0&&Math.random()<0.4){
     const chains=allOpponentChains();
@@ -722,7 +739,7 @@ async function aiAct(seq){
 }
 async function startTurn(){
   const seq=++state.seq;
-  state.phase='rolling'; state.timeLeft=TURN_TIME; state.timerOn=true; state.targeting=false; state.sum=0;
+  state.phase='rolling'; state.timeLeft=TURN_TIME; state.timerOn=!paused; state.targeting=false; state.sum=0;
   clearMatches(); clearTargets();
   if(!Object.values(state.edges).some(e=>!e.broken&&e.owner===0)){ endGame(null); return; }
   state.turnCount=(state.turnCount||0)+1;
@@ -995,9 +1012,11 @@ function maybeTriggerEvent(){
   else return eventWheel();
   return null;
 }
-function eventCastle(){
+async function eventCastle(){
   const p=1+Math.floor(Math.random()*state.nPlayers);
+  if(!(await eventSpin(p,'🏰 Billionaire Castle!','Who does the castle choose…?'))) return;
   state.scores[p-1]+=3;
+  await eventSettle(P(p)+' +3 points',p);
   showEventCard('🏰','Billionaire Castle!',P(p)+' +3 points');
   boardFlash('gold');
   sfx.win();
@@ -1147,7 +1166,7 @@ function eventLightning(){
   log(`⚡ Lightning! ${pick.length} line${pick.length>1?'s':''} destroyed for good${lost.length?` · ${lost.length} box${lost.length>1?'es':''} reopened`:''}`,0);
   updateHUD(); saveSnapshot();
 }
-function eventMagnet(){
+async function eventMagnet(){
   const thief=1+Math.floor(Math.random()*state.nPlayers);
   let victim=1+Math.floor(Math.random()*(state.nPlayers-1));
   if(victim>=thief) victim++;
@@ -1157,8 +1176,10 @@ function eventMagnet(){
     log('🧲 Magnet — nothing to steal',0);
     return;
   }
+  if(!(await eventSpin(thief,'🧲 Magnet!','Who grabs the points…?'))) return;
   state.scores[thief-1]+=steal;
   state.scores[victim-1]-=steal;
+  await eventSettle(`${P(thief)} stole ${steal} point${steal>1?'s':''} from ${P(victim)}`,thief);
   showEventCard('🧲','Magnet!',`${P(thief)} stole ${steal} point${steal>1?'s':''} from ${P(victim)}`);
   boardFlash('magnet');
   sfx.magnet();
@@ -1224,7 +1245,7 @@ function buildWheel(){
   svg.append(hub);
   box.append(svg);
 }
-function spinWheel(){
+function spinWheel(forceTarget){
   return new Promise(res=>{
     const box=$('#wheel');
     box.style.transition='none';
@@ -1232,7 +1253,7 @@ function spinWheel(){
     void box.offsetWidth;
     box.style.transition='transform 4.2s cubic-bezier(.1,.75,.15,1)';
     const n=state.nPlayers, slice=360/n;
-    const target=1+Math.floor(Math.random()*n);
+    const target=forceTarget||(1+Math.floor(Math.random()*n));
     const base=((-(target-0.5)*slice)%360+360)%360;
     const rot=base+(5+Math.floor(Math.random()*3))*360;
     box.style.transform=`rotate(${rot}deg)`;
@@ -1240,9 +1261,42 @@ function spinWheel(){
     setTimeout(()=>res(target),4300);
   });
 }
+/* auto-spin for events that pick a random player (castle, magnet):
+   the wheel spins on its own so everyone sees who got chosen */
+async function eventSpin(target,title,sub){
+  state.timerOn=false;
+  buildWheel();
+  $('#wheel-title').textContent=title;
+  $('#wheel-sub').textContent=sub;
+  $('#btn-spin').style.display='none';
+  $('#wheel-note').style.display='none';
+  $('#wheel-modal').classList.add('show');
+  await wait(450); // let the modal paint before the spin starts
+  const seq=state.seq;
+  await spinWheel(target);
+  if(seq!==state.seq||state.over){
+    $('#wheel-modal').classList.remove('show');
+    $('#btn-spin').style.display='';
+    $('#wheel-note').style.display='';
+    if(!state.over) state.timerOn=true;
+    return false;
+  }
+  return true;
+}
+async function eventSettle(text,winner){
+  $('#wheel-sub').textContent=text;
+  if(winner) confetti(CONFETTI[winner]);
+  sfx.win();
+  await wait(1600);
+  $('#wheel-modal').classList.remove('show');
+  $('#btn-spin').style.display='';
+  $('#wheel-note').style.display='';
+  if(!state.over) state.timerOn=true;
+}
 async function eventWheel(){
   state.timerOn=false;
   buildWheel();
+  $('#wheel-title').textContent='🎡 Wheel of Fortune';
   $('#wheel-sub').textContent='Spin to choose a lucky player…';
   $('#btn-spin').disabled=false;
   $('#wheel-modal').classList.add('show');
@@ -1420,11 +1474,38 @@ $('#btn-mute').addEventListener('click',()=>{
 });
 $('#btn-again').addEventListener('click',()=>{
   ensureAudio();
+  paused=false; pauseWaiters.forEach(r=>r()); pauseWaiters=[];
+  $('#pause-overlay').classList.remove('show');
+  $('#btn-pause').textContent='⏸️';
   $('#go-modal').classList.remove('show');
   state=freshState(state.nPlayers,state.ai);
   buildBoard(); buildPlayers(); updateHUD(); renderDice(); renderLog();
   startTurn();
 });
+
+/* ---------- pause (P) ---------- */
+let paused=false, pauseWaiters=[];
+function gatePause(){ if(!paused) return null; return new Promise(r=>pauseWaiters.push(r)); }
+function togglePause(){
+  if(!state||state.over) return;
+  if(state.phase!=='rolling'&&state.phase!=='acting') return;
+  if(document.querySelector('.modal.show')) return;
+  if($('#honey').classList.contains('active')) return;
+  paused=!paused;
+  if(paused){
+    state.timerOn=false;
+    $('#btn-pause').textContent='▶️';
+    $('#pause-overlay').classList.add('show');
+  }else{
+    state.timerOn=true;
+    $('#btn-pause').textContent='⏸️';
+    $('#pause-overlay').classList.remove('show');
+    pauseWaiters.forEach(r=>r()); pauseWaiters=[];
+  }
+}
+$('#btn-pause').addEventListener('click',togglePause);
+$('#pause-overlay').addEventListener('click',()=>togglePause());
+document.addEventListener('keydown',ev=>{ if((ev.key==='p'||ev.key==='P')&&!ev.repeat) togglePause(); });
 
 /* ---------- timer ---------- */
 setInterval(()=>{

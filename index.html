@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Retro Arcade — 8 Games, One Cabinet</title>
+<title>Retro Arcade — 13 Games, One Cabinet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- media="print" + onload keeps the stylesheet from blocking the page's JS when
@@ -258,7 +258,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 <header>
   <div class="kicker">★ Insert Coin ★</div>
   <h1>RETRO <span class="accent">ARCADE</span></h1>
-  <p class="sub">8 Games · One Cabinet</p>
+  <p class="sub">13 Games · One Cabinet</p>
 </header>
 
 <main>
@@ -276,7 +276,6 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
   <div class="player-bar" style="--accent:#fff">
     <button class="bar-btn exit" id="btnExit">✕ EXIT</button>
     <div class="player-title" id="playerTitle"></div>
-    <button class="bar-btn" id="btnNewTab">↗ NEW TAB</button>
   </div>
   <div class="frame">
     <div class="loader" id="loader">Loading…</div>
@@ -313,7 +312,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
 <script>
 "use strict";
 const GAMES = [
-  {id:"dice",      name:"Dice & Boxes Duel",  icon:"🎲", accent:"#ff6b6b", cost:1, url:"games/dots-and-boxes/dots-and-boxes.html?v=1",
+  {id:"dice",      name:"Dice & Boxes Duel",  icon:"🎲", accent:"#ff6b6b", cost:1, url:"games/dots-and-boxes/dots-and-boxes.html?v=3",
    tag:"Hotseat two-player board duel — roll the dice, grab boxes, outscore your rival.", badges:["2P Hotseat"]},
   {id:"elemental", name:"Elemental Merge",    icon:"🧪", accent:"#4ade80", cost:3, url:"games/elemental-merge/index.html?v=1",
    tag:"Merge elemental units, fight waves, defend your base. Tip: press Cmd (⌘) + = to get bigger.", badges:["Strategy"]},
@@ -627,7 +626,6 @@ grid.addEventListener("click", e => {
 
 frame.addEventListener("load", () => { if (!player.hidden) hideLoader(); });
 document.getElementById("btnExit").addEventListener("click", exit);
-document.getElementById("btnNewTab").addEventListener("click", () => { if (current) openTab(current); });
 
 tokenPill.addEventListener("click", () => openShop());
 
