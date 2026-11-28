@@ -276,7 +276,7 @@ footer code{background:rgba(255,255,255,.07);border:1px solid var(--border);bord
     <div class="loader" id="loader">Loading…</div>
     <iframe id="frame" allow="autoplay; fullscreen; gamepad; encrypted-media" allowfullscreen title="Game"></iframe>
   </div>
-  <div class="player-hint">ESC exits · the game's own keys work inside the window</div>
+  <div class="player-hint">Keys go straight to the game · click ✕ EXIT to leave</div>
 </div>
 
 <div class="shop" id="shop" hidden>
@@ -607,6 +607,13 @@ function exit(){
   document.body.style.overflow = "";
   current = null;
   hideLoader();
+  // Hand keyboard focus back to the lobby (the about:blank iframe would keep it)
+  try { frame.blur(); } catch(e) {}
+  try {
+    document.body.setAttribute("tabindex", "-1");
+    document.body.focus();
+    document.body.removeAttribute("tabindex");
+  } catch(e) {}
   if (musicOn()) bgm.play().catch(() => {});   // back to the arcade lobby
 }
 grid.addEventListener("click", e => {
@@ -616,7 +623,22 @@ grid.addEventListener("click", e => {
   play(g);
 });
 
-frame.addEventListener("load", () => { if (!player.hidden) hideLoader(); });
+frame.addEventListener("load", () => {
+  if (!player.hidden) {
+    hideLoader();
+    // Hand keyboard focus straight to the game so its keys (P, F, G, 672400…)
+    // work the moment it loads, without a click inside first.
+    try { frame.contentWindow.focus(); } catch (e) {}
+  } else {
+    // Exiting: the about:blank navigation would keep the iframe focused and
+    // swallow lobby shortcut keys — take focus back once it has committed.
+    try {
+      document.body.setAttribute("tabindex", "-1");
+      document.body.focus();
+      document.body.removeAttribute("tabindex");
+    } catch (e) {}
+  }
+});
 document.getElementById("btnExit").addEventListener("click", exit);
 
 tokenPill.addEventListener("click", () => openShop());
@@ -675,11 +697,29 @@ document.addEventListener("keydown", e => {
   }
   if (!player.hidden){
     if (e.key === "Escape") exit();
+    else forwardKeyToGame(e);
     return;
   }
   const n = Number(e.key);
   if (n >= 1 && n <= GAMES.length) play(GAMES[n - 1]);
 });
+
+/* While a game is open, the iframe may not have keyboard focus yet (the
+   hub keeps it after ▶ Play), so keys typed right away would never reach
+   the game. Forward them into the game document — same-origin, so the
+   dispatch works; the game's own listeners see them as normal keydowns.
+   Clicking inside the game gives it real focus and this never fires. */
+function forwardKeyToGame(e){
+  if (!frame || !frame.contentDocument) return;
+  const skip = new Set(["Shift","Control","Alt","Meta","CapsLock","Dead"]);
+  if (skip.has(e.key)) return;
+  try {
+    frame.contentDocument.dispatchEvent(new KeyboardEvent("keydown", {
+      key: e.key, code: e.code || "", keyCode: e.keyCode || 0,
+      bubbles: true, cancelable: true, repeat: !!e.repeat,
+    }));
+  } catch (err) { /* cross-origin or not loaded yet — nothing to forward */ }
+}
 
 refreshDaily();
 
