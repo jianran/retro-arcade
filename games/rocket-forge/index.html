@@ -346,6 +346,7 @@ body.flying #hint{display:none}
             <button class="hbtn w" data-w="100">100×</button>
           </span>
           <button class="hbtn ai" id="btnAI">AI [Q]</button>
+          <button class="hbtn" id="btnPod" title="Enter a pod on the rocket">🚪 POD</button>
           <button class="hbtn" id="btnPause">PAUSE</button>
           <button class="hbtn danger" id="btnAbort">ABORT</button>
         </div>
@@ -385,7 +386,6 @@ body.flying #hint{display:none}
     <div id="selInfo" class="selinfo hidden">
       <h3 id="selName"></h3>
       <p id="selDesc"></p>
-      <button class="mini" id="btnEnter">🚪 Enter</button>
       <button class="mini" id="btnRemove">✕ Sell part (75% refund)</button>
     </div>
     <button id="btnLaunch" class="btn big" disabled>LAUNCH</button>
@@ -1876,6 +1876,8 @@ function backToBuilder(){
 }
 
 document.addEventListener('keydown',e=>{
+  // while inside a pod, every key is ignored except ESC (the hatch)
+  if($('podModal').classList.contains('show')){ if(e.code==='Escape')closePod(); return; }
   if(e.code==='Space'){
     e.preventDefault();
     if(phase==='build'){if(!validate(B.parts))launch();}
@@ -1935,7 +1937,8 @@ function toggleMute(){
 const EXP_COST=100;
 let podType=null,podWarpPrev=null,expRunning=false;
 function openPod(t){
-  if(phase!=='build')return;
+  // pods are only usable in flight — the crew can leave their posts mid-mission
+  if(phase!=='flight')return;
   const d=PARTS[t];if(!d)return;
   podType=t;
   if(t==='science'){
@@ -1945,6 +1948,22 @@ function openPod(t){
   }
   $('podModal').classList.add('show');
   renderPod();
+}
+function openPodPicker(){
+  if(phase!=='flight')return;
+  const parts=[...new Set(flight.parts)];
+  if(!parts.length){msg('No parts on this rocket');return;}
+  podType=null;
+  $('podModal').classList.add('show');
+  $('podTitle').textContent='🚪 Which pod?';
+  $('podSub').textContent='The rocket keeps flying while you are inside.';
+  $('podBody').innerHTML=parts.map(t=>{
+    const d=PARTS[t];
+    return '<button class="podbtn" data-pod="'+t+'">'+(FLAVOR[t]?'🚪 ':'')+d.n+'</button>';
+  }).join('<br>')+'<p class="flavor">Pick a pod to step inside. ESC closes the hatch.</p>';
+  document.querySelectorAll('#podBody [data-pod]').forEach(b=>{
+    b.addEventListener('click',()=>openPod(b.dataset.pod));
+  });
 }
 function closePod(){
   if(podType==='science'&&podWarpPrev!==null){flight.warp=podWarpPrev;podWarpPrev=null;}
@@ -2027,7 +2046,8 @@ function resolveExperiment(){
   if(available.length===0||Math.random()<0.3){
     res.textContent='Nothing Happened';
     res.classList.remove('big');
-    B.toast={text:'Nothing Happened',x:W/2,y:H*0.32,until:performance.now()+1800};
+    if(phase==='flight')msg('Nothing Happened');
+    else B.toast={text:'Nothing Happened',x:W/2,y:H*0.32,until:performance.now()+1800};
     Snd.beep(90,0.25,'triangle',0.08);
   }else{
     const pick=available[Math.floor(Math.random()*available.length)];
@@ -2035,13 +2055,15 @@ function resolveExperiment(){
       const t=pick.slice(5);save.secretParts.push(t);
       res.innerHTML='<span style="font-size:18px">🎉 NEW PART UNLOCKED!!!</span><br>🔬 '+PARTS[t].n+' — '+PARTS[t].desc;
       res.classList.add('big');
-      B.toast={text:'🎉 NEW PART UNLOCKED!!! '+PARTS[t].n,x:W/2,y:H*0.32,until:performance.now()+2400};
+      if(phase==='flight')msg('🎉 NEW PART UNLOCKED!!! '+PARTS[t].n);
+      else B.toast={text:'🎉 NEW PART UNLOCKED!!! '+PARTS[t].n,x:W/2,y:H*0.32,until:performance.now()+2400};
       buildPalette();
     }else{
       const k=pick.slice(3);save.upgrades.push(k);
       res.innerHTML='<span style="font-size:18px">🎉 NEW UPGRADE UNLOCKED!!!</span><br>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d;
       res.classList.add('big');
-      B.toast={text:'🎉 NEW UPGRADE UNLOCKED!!! '+UPGRADES[k].n,x:W/2,y:H*0.32,until:performance.now()+2400};
+      if(phase==='flight')msg('🎉 NEW UPGRADE UNLOCKED!!! '+UPGRADES[k].n);
+      else B.toast={text:'🎉 NEW UPGRADE UNLOCKED!!! '+UPGRADES[k].n,x:W/2,y:H*0.32,until:performance.now()+2400};
     }
     Snd.chime();
   }
@@ -2094,7 +2116,7 @@ $('loadBtn').addEventListener('click',()=>{
 });
 $('btnLaunch').addEventListener('click',launch);
 $('btnRemove').addEventListener('click',()=>sellPart(B.selected));
-$('btnEnter').addEventListener('click',()=>{ if(phase==='build'&&B.selected>=0) openPod(B.parts[B.selected]); });
+$('btnPod').addEventListener('click',openPodPicker);
 $('podClose').addEventListener('click',closePod);
 $('podModal').addEventListener('click',e=>{ if(e.target.id==='podModal') closePod(); });
 $('btnStage').addEventListener('click',jettison);
