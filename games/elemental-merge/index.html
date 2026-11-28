@@ -164,6 +164,7 @@ canvas{display:block;width:100%;height:100%;min-height:320px;}
     <button id="btn-theme" title="Change theme" style="font-size:13px;">🎨</button>
     <button id="btn-leaderboard" title="Leaderboard" style="font-size:13px;">🏆</button>
   </div>
+  <button id="btn-exit-duel" onclick="exitDuel()" style="display:none;position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:90;padding:10px 22px;border:1px solid #ff6666;background:rgba(0,0,0,.65);color:#ff8888;border-radius:10px;cursor:pointer;font-size:14px;font-weight:700;">✕ Exit duel</button>
   <div id="main-area">
     <div id="shop-panel">
       <h3>🛒 Shop</h3>
@@ -725,6 +726,8 @@ function hideOverlay(){document.getElementById('overlay-container').innerHTML=''
 
 function restartGame(){
   S.phase='prep';S.wave=1;S.gold=100;S.baseHp=S.baseMaxHp=BASE_MAX_HP;S.potions=1;S.deathRays=0;S.ultraRays=0;
+  S.duelMode=false;S.duelOpponent=null;S.duelOppUnits=[];S.duelOppBench=[];delete S._combatEndTimer;
+  const exBtn=document.getElementById('btn-exit-duel');if(exBtn)exBtn.style.display='none';
   S.bench=[];for(let r=0;r<GRID_ROWS;r++)for(let c=0;c<GRID_COLS;c++)S.grid[r][c]=null;
   S.enemies=[];S.particles=[];S.damageNumbers=[];S.goldDrops=[];S.attackLines=[];S.fallenUnits=[];
   S.stats={wavesCleared:0,totalGold:0,totalMerges:0,bossesDefeated:0};
@@ -1055,10 +1058,14 @@ function showDuelPicker(){
     </div>`;
   }
   document.getElementById('overlay-container').innerHTML=`
-    <div class="overlay"><div class="overlay-box" style="max-width:420px;">
-      <h2>⚔️ Challenge to a Duel</h2>
+    <div class="overlay"><div class="overlay-box" style="max-width:420px;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span style="width:26px;"></span>
+        <h2 style="margin:0;">⚔️ Challenge to a Duel</h2>
+        <button onclick="hideOverlay()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;padding:2px 6px;" title="Exit back to the game">✕</button>
+      </div>
       <p style="font-size:12px;">Your army vs their army — auto-battle!</p>
-      ${rows}
+      <div style="overflow-y:auto;max-height:58vh;margin:6px -12px;padding:0 12px;">${rows}</div>
       <p style="font-size:10px;color:var(--text-dim);margin-top:8px;">Place units on grid before dueling! Beat a higher-rank NPC → switch ranks · up to 1000 🪙</p>
       <button onclick="hideOverlay()" style="margin-top:8px;padding:8px 20px;border:1px solid #666;background:transparent;color:#aaa;border-radius:6px;cursor:pointer;">Cancel</button>
     </div></div>`;
@@ -1090,6 +1097,7 @@ function startDuel(oppId){
 
   hideOverlay();initAudio();
   S.phase='combat';S.duelMode=true;S.combatTime=0;
+  const exBtn=document.getElementById('btn-exit-duel');if(exBtn)exBtn.style.display='block';
   S.enemies=[];S.particles=[];S.damageNumbers=[];S.goldDrops=[];S.attackLines=[];S.fallenUnits=[];
   S._killStreak=0;S._killStreakT=0;delete S._combatEndTimer;
   forEachUnit(u=>{u.attackCooldown=0;const ab=EL[u.element]?.ability;if(ab)u.abilityCd=ab.cd*Math.max(0.35,1-u.tier*0.07);});
@@ -1131,7 +1139,26 @@ function endDuel(playerWon){
     showReward(0,false);
   }
   S.duelOpponent=null;
+  const exBtn=document.getElementById('btn-exit-duel');if(exBtn)exBtn.style.display='none';
   updateUI();saveGame();
+}
+
+// Leave a running duel without winning or losing — back to the prep board
+function exitDuel(){
+  if(!S.duelMode)return;
+  S.phase='prep';S.duelMode=false;
+  S.enemies=[];S.particles=[];S.damageNumbers=[];S.goldDrops=[];S.attackLines=[];
+  for(const f of S.fallenUnits){
+    const u=f.unit;
+    if(f.row>=0&&f.col>=0&&!S.grid[f.row][f.col]){S.grid[f.row][f.col]=u;u.gridRow=f.row;u.gridCol=f.col;}
+    else if(S.bench.length<BENCH_MAX){u.gridRow=u.gridCol=-1;S.bench.push(u);}
+  }
+  S.fallenUnits=[];S.duelOppUnits=[];S.duelOppBench=[];S.duelOpponent=null;
+  forEachUnit(u=>{u.hp=u.maxHp;});
+  delete S._combatEndTimer;
+  const exBtn=document.getElementById('btn-exit-duel');if(exBtn)exBtn.style.display='none';
+  hideOverlay();updateUI();saveGame();
+  toast('↩️ Left the duel — back to your board');
 }
 
 // ─── CANVAS RENDERING ───────────────────────────────────────
