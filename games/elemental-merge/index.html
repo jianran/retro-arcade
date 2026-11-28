@@ -786,7 +786,57 @@ const NPCS=[
   {id:'npc_8',name:'Storm Seth',wave:40,element:'air',tier:2,count:16,hybrid:true},
   {id:'npc_9',name:'Tidal Tina',wave:55,element:'water',tier:3,count:12},
   {id:'npc_10',name:'Cosmic King',wave:75,element:'fire',tier:4,count:14,hybrid:true},
+  {id:'npc_11',name:'Ember Empress',wave:90,element:'fire',tier:4,count:16,hybrid:true},
+  {id:'npc_12',name:'Onyx Overlord',wave:110,element:'stone',tier:4,count:16},
+  {id:'npc_13',name:'Zephyr Zenith',wave:130,element:'air',tier:5,count:14,hybrid:true},
+  {id:'npc_14',name:'Abyss Admiral',wave:150,element:'water',tier:5,count:16},
+  {id:'npc_15',name:'Nova Nemesis',wave:175,element:'fire',tier:5,count:18,hybrid:true},
+  {id:'npc_16',name:'Infinity Immortal',wave:200,element:'stone',tier:5,count:18},
 ];
+
+function buildNPCArmy(npc){
+  const grid=Array.from({length:GRID_ROWS},()=>Array(GRID_COLS).fill(null));
+  const bench=[];
+  let placed=0;
+  for(let r=0;r<GRID_ROWS&&placed<npc.count;r++){
+    for(let c=0;c<GRID_COLS&&placed<npc.count;c++){
+      const elm=npc.element;
+      let unit;
+      if(npc.hybrid&&placed%3===0){
+        // Add some hybrid variety
+        const pairElms=[['water','air'],['fire','stone'],['water','stone'],['fire','air']];
+        const pair=pairElms[Math.floor(Math.random()*pairElms.length)];
+        const recipeKey=[pair[0],pair[1]].sort().join('|');
+        const recipe=RECIPES[recipeKey];
+        if(recipe){
+          const el=recipe.element||pair[0];
+          unit=mkUnit(el,recipe.name.toLowerCase(),recipe.tier,recipe);
+        }else{unit=createBasic(elm);}
+      }else{
+        // Pure element unit at NPC tier
+        unit=createBasic(elm);
+        // Evolve to target tier
+        for(let t=0;t<npc.tier;t++){
+          const chainNames={
+            water:['water','wave','sea','leviathan','abyssal lord','tidal god','ocean primordial','aqua deity','neptulon','poseidon\'s wrath'],
+            fire:['fire','blaze','inferno','phoenix king','solar lord','nova emperor','supernova','hellfire god','apocalypse','cosmic flame'],
+            stone:['stone','concrete','crystal','mountain titan','diamond colossus','earthshaker','tectonic behemoth','gaia\'s wrath','world forger','cosmic bedrock'],
+            air:['air','wind','storm','sky dragon','tempest wyrm','void storm','hurricane god','celestial zephyr','astral wind','eternal cyclone'],
+          };
+          const chain=chainNames[elm];
+          if(chain&&chain[t+1]){
+            const recipe=RECIPES[[chain[t],chain[t]].sort().join('|')];
+            if(recipe)unit=mkUnit(elm,recipe.name.toLowerCase(),recipe.tier,recipe);
+          }
+        }
+      }
+      unit.gridRow=r;unit.gridCol=c;unit.hp=unit.maxHp;
+      grid[r][c]=ser(unit);
+      placed++;
+    }
+  }
+  return grid;
+}
 
 function generateNPCs(){
   const profiles=getProfiles();
@@ -794,53 +844,11 @@ function generateNPCs(){
     if(profiles.find(p=>p.id===npc.id))continue; // Already exists
     // Create NPC profile
     profiles.push({id:npc.id,name:npc.name,isNPC:true,wave:npc.wave,created:Date.now()});
-    // Build their army
-    const grid=Array.from({length:GRID_ROWS},()=>Array(GRID_COLS).fill(null));
-    const bench=[];
-    // Generate units
-    let placed=0;
-    for(let r=0;r<GRID_ROWS&&placed<npc.count;r++){
-      for(let c=0;c<GRID_COLS&&placed<npc.count;c++){
-        const elm=npc.element;
-        let unit;
-        if(npc.hybrid&&placed%3===0){
-          // Add some hybrid variety
-          const pairElms=[['water','air'],['fire','stone'],['water','stone'],['fire','air']];
-          const pair=pairElms[Math.floor(Math.random()*pairElms.length)];
-          const recipeKey=[pair[0],pair[1]].sort().join('|');
-          const recipe=RECIPES[recipeKey];
-          if(recipe){
-            const el=recipe.element||pair[0];
-            unit=mkUnit(el,recipe.name.toLowerCase(),recipe.tier,recipe);
-          }else{unit=createBasic(elm);}
-        }else{
-          // Pure element unit at NPC tier
-          unit=createBasic(elm);
-          // Evolve to target tier
-          for(let t=0;t<npc.tier;t++){
-            const typeName=EL[elm].name.toLowerCase();
-            const chainNames={
-              water:['water','wave','sea','leviathan','abyssal lord','tidal god','ocean primordial','aqua deity','neptulon','poseidon\'s wrath'],
-              fire:['fire','blaze','inferno','phoenix king','solar lord','nova emperor','supernova','hellfire god','apocalypse','cosmic flame'],
-              stone:['stone','concrete','crystal','mountain titan','diamond colossus','earthshaker','tectonic behemoth','gaia\'s wrath','world forger','cosmic bedrock'],
-              air:['air','wind','storm','sky dragon','tempest wyrm','void storm','hurricane god','celestial zephyr','astral wind','eternal cyclone'],
-            };
-            const chain=chainNames[elm];
-            if(chain&&chain[t+1]){
-              const recipe=RECIPES[[chain[t],chain[t]].sort().join('|')];
-              if(recipe)unit=mkUnit(elm,recipe.name.toLowerCase(),recipe.tier,recipe);
-            }
-          }
-        }
-        unit.gridRow=r;unit.gridCol=c;unit.hp=unit.maxHp;
-        grid[r][c]=ser(unit);
-        placed++;
-      }
-    }
-    // Save NPC data
+    // Build and save their army
+    const grid=buildNPCArmy(npc);
     const save={wave:npc.wave,gold:500+npc.wave*10,baseHp:BASE_MAX_HP,baseMaxHp:BASE_MAX_HP,
       potions:0,deathRays:0,ultraRays:0,
-      bench:bench.map(u=>ser(u)),grid,
+      bench:[],grid,
       stats:{wavesCleared:npc.wave-1,totalGold:0,totalMerges:0,bossesDefeated:Math.floor(npc.wave/10)},
       achievements:[],uid:0};
     localStorage.setItem(saveKey(npc.id),JSON.stringify(save));
@@ -852,8 +860,82 @@ function generateNPCs(){
   saveProfiles(profiles);
 }
 
+// ─── NPC CLOCK: every NPC gains 1 rank per minute ────────────
+const LB_KEY='elem_merge_leaderboard';   // declared here so the catch-up tick below can reach it
+const NPC_CLOCK_KEY='elem_merge_npc_clock';
+const NPC_MAX=30;            // cap on generated NPCs so the list stays sane
+const WEAK_GEN_MAX=12;       // when the weakest NPC passes this wave, spawn a fresh weak one
+
+function npcLevelUpAll(ranks){
+  if(ranks<=0)return;
+  const profiles=getProfiles();
+  for(const p of profiles){
+    if(!p.isNPC)continue;
+    p.wave=(p.wave||1)+ranks;
+    try{
+      const r=localStorage.getItem(saveKey(p.id));
+      if(r){const d=JSON.parse(r);d.wave=p.wave;localStorage.setItem(saveKey(p.id),JSON.stringify(d));}
+    }catch(e){}
+  }
+  saveProfiles(profiles);
+  const lb=getLeaderboard();
+  for(const e of lb){
+    const p=profiles.find(x=>x.id===e.id);
+    if(p&&p.isNPC){e.wave=p.wave;e.time=Date.now();}
+  }
+  lb.sort((a,b)=>b.wave-a.wave);saveLeaderboard(lb.slice(0,20));
+}
+
+function spawnWeakNPC(){
+  const profiles=getProfiles();
+  const npcs=profiles.filter(p=>p.isNPC);
+  if(npcs.length>=NPC_MAX)return false;
+  const names=['Rookie Ray','Junior Jin','Fledgling Fay','Trainee Tom','Greenhorn Gail','Sprout Sam','Cub Casey','Pupil Pia'];
+  const used=new Set(npcs.map(p=>p.name));
+  const name=names.find(n=>!used.has(n))||('Rookie '+(Math.floor(Math.random()*900)+100));
+  const elms=['water','fire','stone','air'];
+  const npc={
+    id:'npc_gen_'+Date.now().toString(36)+Math.floor(Math.random()*1000),
+    name,isNPC:true,
+    wave:2+Math.floor(Math.random()*8),   // fresh weak NPC: waves 2–9
+    element:elms[Math.floor(Math.random()*elms.length)],
+    tier:0,count:8,created:Date.now(),
+  };
+  profiles.push(npc);
+  const grid=buildNPCArmy(npc);
+  const save={wave:npc.wave,gold:500+npc.wave*10,baseHp:BASE_MAX_HP,baseMaxHp:BASE_MAX_HP,
+    potions:0,deathRays:0,ultraRays:0,
+    bench:[],grid,
+    stats:{wavesCleared:npc.wave-1,totalGold:0,totalMerges:0,bossesDefeated:0},
+    achievements:[],uid:0};
+  localStorage.setItem(saveKey(npc.id),JSON.stringify(save));
+  const lb=getLeaderboard();
+  if(!lb.find(e=>e.id===npc.id)){lb.push({id:npc.id,name:npc.name,isNPC:true,wave:npc.wave,time:Date.now()});}
+  lb.sort((a,b)=>b.wave-a.wave);saveLeaderboard(lb.slice(0,20));
+  saveProfiles(profiles);
+  return true;
+}
+
+function npcTick(ranks){
+  npcLevelUpAll(ranks);
+  // Keep the weak end of the ladder fresh: weaker NPCs generate, too
+  const npcs=getProfiles().filter(p=>p.isNPC);
+  let weakest=999999;
+  for(const p of npcs)weakest=Math.min(weakest,p.wave||1);
+  if(!npcs.length||weakest>WEAK_GEN_MAX)spawnWeakNPC();
+}
+
+// Catch up on time spent away (1 rank per minute), then keep ticking live.
+(function startNPCClock(){
+  const now=Date.now();
+  let last=parseInt(localStorage.getItem(NPC_CLOCK_KEY)||'0',10)||0;
+  let ranks=last?Math.floor((now-last)/60000):0;
+  localStorage.setItem(NPC_CLOCK_KEY,String(now));
+  if(ranks>0)npcTick(ranks);
+  setInterval(()=>npcTick(1),60000);
+})();
+
 // ─── LEADERBOARD & DAILY REWARD ────────────────────────────
-const LB_KEY='elem_merge_leaderboard';
 function getLeaderboard(){
   try{return JSON.parse(localStorage.getItem(LB_KEY))||[];}catch(e){return[];}
 }
