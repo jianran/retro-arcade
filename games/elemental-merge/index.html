@@ -1797,8 +1797,7 @@ document.addEventListener('keydown',e=>{
     document.body.appendChild(inp);inp.focus();
     inp.addEventListener('keydown',ev=>{
       if(ev.key==='Enter'){
-        if(inp.value==='840222'){S.gold+=10000;updateUI();saveGame();toast('💰 +10000 gold!');}
-        else if(inp.value==='672400'){cheatFillMax();}
+        if(inp.value==='672400'){cheatFillMax();}
         else toast('❌ Invalid code');
         inp.remove();
       }
