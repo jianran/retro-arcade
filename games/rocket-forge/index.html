@@ -259,6 +259,7 @@ body.flying #hint{display:none}
 #btnVial.shaking{animation:vialShake .4s linear infinite}
 #vialLabel{font-size:12px;color:var(--muted);margin-top:2px}
 #podResult.big{font-size:17px;color:var(--accent2)}
+.podlabel{font-size:11px;color:var(--muted);margin:4px 0}
 @keyframes vialShake{
   0%,100%{transform:rotate(0) translateY(0)}
   25%{transform:rotate(-7deg) translateY(-3px)}
@@ -1115,7 +1116,7 @@ function initFlight(types){
   F.shield=F.shieldMax; // ablative protection only if the part is mounted
   F.rcsMax=Math.round((80+F.parts.filter(t=>t==='rcsTank').length*40+F.parts.filter(t=>t==='probe').length*200+F.parts.filter(t=>t==='rcsXL').length*90)*(hasUp('rcs20')?1.2:1));
   F.rcs=F.rcsMax; // capsule reserve + RCS tanks
-  F.sciBonus=0;F.skippedMissions=0;F.labUses=0;
+  F.sciBonus=0;F.skippedMissions=0;F.labUses=0;F.cargoUses=0;F.obsUses=0;F.crewUses=0;
   F.troubleDue=Math.random()<0.55;F.troubleAt=30+Math.random()*50; // big scripted threat on ~55% of flights
   F.recordAtLaunch=save.record;F.brokeRecord=false;F.recordBonus=0;
   $('shieldBar').style.width='100%';
@@ -2158,6 +2159,33 @@ function renderPod(){
       :'<div>No flights yet — go fly!</div>')+
       '</div>';
     $('podBody').innerHTML=body;
+  }else if(t==='cargo'){
+    $('podSub').textContent='Freight management — useful mid-flight.';
+    body='<p class="flavor">'+FLAVOR.cargo+'</p>'+
+      '<button class="podbtn primary" id="btnCargo">📦 Rummage the crates</button>'+
+      '<div class="podlabel" id="cargoLabel"></div>'+
+      '<div id="podResult"></div>';
+    $('podBody').innerHTML=body;
+    $('btnCargo').addEventListener('click',pressCargo);
+    updateUseLabel('cargoLabel','cargoUses','The cargo bay is empty for this flight');
+  }else if(t==='obs'){
+    $('podSub').textContent='The cameras sell their footage by altitude.';
+    body='<p class="flavor">'+FLAVOR.obs+'</p>'+
+      '<button class="podbtn primary" id="btnObs">📸 Snap &amp; sell footage</button>'+
+      '<div class="podlabel" id="obsLabel"></div>'+
+      '<div id="podResult"></div>';
+    $('podBody').innerHTML=body;
+    $('btnObs').addEventListener('click',pressObs);
+    updateUseLabel('obsLabel','obsUses','No more film for this flight');
+  }else if(t==='crew'){
+    $('podSub').textContent='Crew morale — a hot meal keeps the hull happy.';
+    body='<p class="flavor">'+FLAVOR.crew+'</p>'+
+      '<button class="podbtn primary" id="btnCrew">🍽️ Serve a hot meal</button>'+
+      '<div class="podlabel" id="crewLabel"></div>'+
+      '<div id="podResult"></div>';
+    $('podBody').innerHTML=body;
+    $('btnCrew').addEventListener('click',pressCrew);
+    updateUseLabel('crewLabel','crewUses','The galley is closed for this flight');
   }else{
     $('podSub').textContent='A quiet moment inside the '+d.n.toLowerCase()+'.';
     const stat=d.stat||(d.t?fmt(d.t/1000)+' kN':d.f?fmt(d.f)+' kg':d.i?d.i+' s ISP':'')||'—';
@@ -2172,6 +2200,44 @@ function renderPod(){
       $('podFlavor').textContent=FLAVOR[t]+' '+facts[Math.floor(Math.random()*facts.length)];
     });
   }
+}
+function updateUseLabel(elId,usesKey,emptyMsg){
+  const el=$(elId);if(!el)return;
+  const left=LAB_USES_MAX-(flight[usesKey]||0);
+  el.textContent=left>0?(left+' use'+(left===1?'':'s')+' left this flight'):emptyMsg;
+}
+function pressCargo(){
+  if((flight.cargoUses||0)>=LAB_USES_MAX){$('podResult').textContent='The cargo bay is empty for this flight.';return;}
+  flight.cargoUses=(flight.cargoUses||0)+1;
+  const roll=Math.random();
+  let text='';
+  if(roll<0.15){text='📦 Empty crate. Just packing peanuts.';Snd.beep(90,0.25,'triangle',0.08);}
+  else if(roll<0.9){const v=60+Math.floor(Math.random()*91);save.funds+=v;text='📦 Found a crate of spare parts: +¤'+v+'!';Snd.chime();}
+  else{save.funds+=300;text='📦 A lost shipment of gold-plated bolts: +¤300!';Snd.chime();}
+  saveState();updateFundsUI();
+  $('podResult').textContent=text;msg(text);
+  updateUseLabel('cargoLabel','cargoUses','The cargo bay is empty for this flight');
+}
+function pressObs(){
+  if((flight.obsUses||0)>=LAB_USES_MAX){$('podResult').textContent='No more film for this flight.';return;}
+  flight.obsUses=(flight.obsUses||0)+1;
+  const pay=Math.round(30+flight.alt/100);
+  save.funds+=pay;saveState();updateFundsUI();
+  const text='📸 Footage sold at '+fmt(flight.alt)+' m: +¤'+pay+'!';
+  $('podResult').textContent=text;msg(text);Snd.chime();
+  updateUseLabel('obsLabel','obsUses','No more film for this flight');
+}
+function pressCrew(){
+  if((flight.crewUses||0)>=LAB_USES_MAX){$('podResult').textContent='The galley is closed for this flight.';return;}
+  flight.crewUses=(flight.crewUses||0)+1;
+  let text='';
+  if(flight.hull>=100){text='🍽️ The crew is already at full morale — they demand dessert instead.';Snd.tick();}
+  else{
+    flight.hull=Math.min(100,flight.hull+5);
+    text='🍽️ A hot meal works wonders: hull +5 ('+Math.ceil(flight.hull)+'%)!';Snd.chime();
+  }
+  $('podResult').textContent=text;msg(text);
+  updateUseLabel('crewLabel','crewUses','The galley is closed for this flight');
 }
 function renderFindings(){
   const f=$('podFindings');if(!f)return;
