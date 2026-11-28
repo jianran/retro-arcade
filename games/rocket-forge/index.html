@@ -236,6 +236,22 @@ body.flying #hint{display:none}
 @media (prefers-reduced-motion: reduce){
   .pcard:hover{transform:none}
 }
+.secretcard{border-color:color-mix(in srgb,var(--accent2) 60%,var(--line))}
+/* pod interior modal */
+#podModal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(5,7,14,.78);backdrop-filter:blur(5px)}
+#podModal.show{display:flex}
+#podBox{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:520px;width:min(94vw,520px);max-height:86vh;overflow-y:auto;padding:20px 24px;text-align:center}
+#podBox h2{margin:0 0 6px;font-family:var(--font-disp);font-size:20px}
+#podBox .podsub{color:var(--muted);font-size:12px;margin:0 0 14px}
+#podBox .podbtn{display:inline-block;margin:4px;padding:9px 18px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);border-radius:10px;cursor:pointer;font-size:13px;font-weight:700}
+#podBox .podbtn:hover{border-color:var(--accent)}
+#podBox .podbtn.primary{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--panel2))}
+#podResult{min-height:22px;margin:10px 0;font-weight:700;color:var(--accent2)}
+#podBox .podlist{text-align:left;margin:10px 0;font-size:12px}
+#podBox .podlist div{padding:4px 8px;border-bottom:1px dashed var(--line)}
+#podBox .flavor{color:var(--muted);font-style:italic;font-size:12px;margin:10px 0}
+#podClose{margin-top:12px;padding:8px 22px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;cursor:pointer;font-size:13px}
+#podClose:hover{color:var(--fg);border-color:var(--accent2)}
 </style>
 
 <header>
@@ -356,12 +372,22 @@ body.flying #hint{display:none}
     <div id="selInfo" class="selinfo hidden">
       <h3 id="selName"></h3>
       <p id="selDesc"></p>
+      <button class="mini" id="btnEnter">🚪 Enter</button>
       <button class="mini" id="btnRemove">✕ Sell part (75% refund)</button>
     </div>
     <button id="btnLaunch" class="btn big" disabled>LAUNCH</button>
     <div id="launchReason" class="reason"></div>
   </aside>
 </main>
+
+<div id="podModal">
+  <div id="podBox">
+    <h2 id="podTitle"></h2>
+    <p class="podsub" id="podSub"></p>
+    <div id="podBody"></div>
+    <button id="podClose">Close</button>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -411,10 +437,95 @@ const PARTS={
   srb:      {n:'Booster SRB',c:1100,m:700, f:7000,t:90000, i:250, h:8.2, stat:'90 kN', desc:'Solid rocket booster. Cheap punch: 90 kN and its own propellant, burned together with its stage.'},
   rcsTank:  {n:'RCS Tank',   c:200, m:60,            h:2.2, stat:'+40 RCS', desc:'Extra monopropellant: +40 kg of RCS fuel for steering and the autopilot.'},
   science:  {n:'Science Pod',c:600, m:400,           h:3.4, stat:'data ¤', desc:'Instruments that sell data after flight: +¤200 above 30 km, +¤600 above 100 km.'},
+  cargo:    {n:'Cargo Pod',  c:450, m:700,           h:4.0, stat:'cargo ¤', desc:'Hauls freight: +¤150 after any flight, +¤400 above 30 km.'},
+  obs:      {n:'Observation Pod',c:800, m:500,        h:3.6, stat:'data ¤', desc:'Sky cameras: +¤300 above 20 km, +¤800 above 100 km.'},
+  crew:     {n:'Crew Cabin', c:700, m:900,            h:4.4, stat:'crew ¤', desc:'Room for two more: +¤250 when you land them safely.'},
   decoupler:{n:'Decoupler',  c:150, m:120,           h:1.6, desc:'Splits the rocket into stages. SPACE jettisons everything below it.'},
   fin:      {n:'Fin',        c:80,  m:60,            h:0,   desc:'Stabilizer fin. Adds a little drag but a lot of looks.'},
 };
-const PALETTE_ORDER=['capsule','shield','nose','tankS','tankM','tankL','engineS','engineM','engineL','titan','srb','rcsTank','science','decoupler','fin'];
+/* Secret parts — only discoverable through Science Pod experiments */
+const SECRET_PARTS={
+  ionDrive:  {n:'Ion Drive',    c:2500,m:300, t:12000, i:4200,h:4.0, secret:true, desc:'Slow but absurdly efficient: 12 kN at 4,200 s ISP.'},
+  nuke:      {n:'NERV Engine',  c:4200,m:1600,t:75000, i:800, h:6.2, secret:true, desc:'Nuclear thermal engine. 75 kN at 800 s.'},
+  aerospike: {n:'Aerospike',    c:3600,m:1400,t:220000,i:340, h:6.8, secret:true, desc:'Altitude-compensating nozzle: 220 kN at 340 s.'},
+  gridFin:   {n:'Grid Fins',    c:600, m:120,          h:0,   secret:true, desc:'Steerable titanium lattice — extra stability, tiny drag.'},
+  rcsXL:     {n:'RCS XL',       c:500, m:120,          h:2.6, secret:true, stat:'+90 RCS', desc:'Oversized monopropellant tank: +90 kg of RCS fuel.'},
+  tankXL:    {n:'Tank XL',      c:1600,m:3000,f:24000, h:12,  secret:true, desc:'Gargantuan tank. 24,000 kg of propellant.'},
+  shieldH:   {n:'Heavy Shield', c:700, m:220,          h:3.0, secret:true, desc:'Double-thickness ablative shield — twice the protection.'},
+  separator: {n:'Stack Separator',c:100,m:60,         h:0.8, secret:true, desc:'Clean separation: SPACE jettisons the stage below, like a decoupler.'},
+  probe:     {n:'Probe Core',   c:900, m:200,          h:2.4, secret:true, stat:'+200 RCS', desc:'Fly-by-wire brain: +200 kg of RCS fuel reserve.'},
+  lab:       {n:'Lab Module',   c:1500,m:800,          h:5.0, secret:true, stat:'data ¤', desc:'Orbital laboratory: +¤1,000 of data above 100 km.'},
+  antenna:   {n:'High-Gain Antenna',c:400,m:60,        h:1.4, secret:true, desc:'Boosts every data payout on the rocket by 25%.'},
+  cargoXL:   {n:'Cargo XL',     c:1200,m:1800,         h:7.0, secret:true, stat:'cargo ¤', desc:'Heavy freight: +¤800 after any flight.'},
+  ultralight:{n:'Ultralight Tank',c:600,m:150,f:900,   h:3.6, secret:true, desc:'Carbon-wrapped tank — the lightest propellant storage.'},
+  ramjet:    {n:'Ramjet',       c:1800,m:700, t:95000, i:420, h:5.4, secret:true, desc:'Loves thick air: 95 kN at 420 s down low.'},
+  methalox:  {n:'Methalox Engine',c:2600,m:1100,t:240000,i:330,h:6.0,secret:true,desc:'Clean-burning cryo engine: 240 kN at 330 s.'},
+  orion:     {n:'Pulse Drive',  c:6000,m:2600,t:500000,i:500, h:8.0, secret:true, desc:'Nuclear pulse monster: 500 kN at 500 s. Handle with awe.'},
+};
+Object.assign(PARTS,SECRET_PARTS);
+const SECRET_ORDER=Object.keys(SECRET_PARTS);
+/* Science Pod experiment upgrades */
+const UPGRADES={
+  cost5:    {n:'Cost Cut',        d:'All parts 5% cheaper.'},
+  cost10:   {n:'Cost Cut II',     d:'All parts 10% cheaper.'},
+  cost15:   {n:'Cost Cut III',    d:'All parts 15% cheaper.'},
+  sci10:    {n:'Data Science',    d:'All data payouts +10%.'},
+  sci20:    {n:'Data Science II', d:'All data payouts +20%.'},
+  sci30:    {n:'Data Science III',d:'All data payouts +30%.'},
+  mission10:{n:'Mission Bonus',   d:'Mission rewards +10%.'},
+  land100:  {n:'Landing Fees',    d:'+¤100 for every soft landing.'},
+  sell10:   {n:'Salvage',         d:'Selling parts refunds 85% instead of 75%.'},
+  rcs20:    {n:'RCS Surplus',     d:'+20% RCS fuel on every flight.'},
+  record50: {n:'Record Chasers',  d:'Altitude-record bonus +50%.'},
+  rebate5:  {n:'Launch Rebate',   d:'Refund 5% of every launch cost.'},
+  heat10:   {n:'Ablative Science',d:'Heat shields survive 10% hotter temperatures.'},
+  cargo10:  {n:'Freight Contracts',d:'Cargo pod payouts +10%.'},
+  obs10:    {n:'Optics Lab',      d:'Observation pod payouts +10%.'},
+  crew10:   {n:'Crew Comfort',    d:'Crew cabin payouts +10%.'},
+};
+const UPGRADE_ORDER=Object.keys(UPGRADES);
+/* experiment outcome pool: 16 secret parts + 16 upgrades = 32 */
+const EXP_POOL=[...SECRET_ORDER.map(t=>'part:'+t),...UPGRADE_ORDER.map(k=>'up:'+k)];
+/* one fun fact per part for the pod flavor screens */
+const FLAVOR={
+  capsule:'The window counts as a load-bearing structural member. Probably.',
+  shield:'Smells faintly of burnt marshmallow after a hot reentry.',
+  nose:'Wind-tunnel tested. Twice. The second time on purpose.',
+  tankS:'One of these once fell off a truck and rolled 3 km downhill. Still holds pressure.',
+  tankM:'The welder who made this signed it with a tiny flame doodle.',
+  tankL:'Filling this by hand takes the whole afternoon and a very long hose.',
+  engineS:'Named after a bug that landed in the fuel line during testing.',
+  engineM:'The roar is 40% thrust and 60% opinions.',
+  engineL:'Has its own fan club. They wear earplugs and sunglasses.',
+  titan:'Three of these once moved a mountain. The mountain apologized.',
+  srb:'Do not paint flames on the side. They will outperform you.',
+  rcsTank:'The little puffs are oddly satisfying. Pfft. Pfft. Pfft.',
+  science:'The beakers are bolted down. That should tell you everything.',
+  cargo:'Contains one (1) box labeled FRAGILE, packed with absolute confidence.',
+  obs:'The camera lens has a tiny sticker of a smiling planet.',
+  crew:'The seats recline. Slightly. Downhill only.',
+  decoupler:'The click when it separates is the most satisfying sound in aerospace.',
+  fin:'Adds a lot of looks and, technically, some drag.',
+  ionDrive:'Whispers across space. It may take a month, but it gets there.',
+  nuke:'The glow is normal. The Geiger counter is also normal. Stop asking.',
+  aerospike:'Equal parts genius and plumbing nightmare.',
+  gridFin:'Cheese-grater chic. The lattice is structural, not culinary.',
+  rcsXL:'Now with 125% more pfft per flight.',
+  tankXL:'You could host a small concert inside. Empty, obviously.',
+  shieldH:'Two marshmallows thick. Only one ever burns.',
+  separator:'Like a decoupler, but it waves goodbye more politely.',
+  probe:'Beep. Beep. Beeeep. It is very proud of itself.',
+  lab:'The mice have unionized. Experiments continue regardless.',
+  antenna:'Picks up three space stations and a surprisingly good jazz station.',
+  cargoXL:'The FRAGILE box now has its own postal code.',
+  ultralight:'So light it floats. Briefly. Before being bolted to a rocket.',
+  ramjet:'Atmospheric connoisseur: only drinks the thick air.',
+  methalox:'Burns clean enough to eat off. Do not eat off it.',
+  orion:'It pulses. The ship pulses back. They have an understanding.',
+};
+function hasUp(k){return (save.upgrades||[]).includes(k);}
+function partCost(c){const k=(hasUp('cost5')?.05:0)+(hasUp('cost10')?.10:0)+(hasUp('cost15')?.15:0);return Math.round(c*(1-k));}
+const PALETTE_ORDER=['capsule','shield','nose','tankS','tankM','tankL','engineS','engineM','engineL','titan','srb','rcsTank','science','cargo','obs','crew','decoupler','fin'];
 const MISSIONS=[
   {k:'test',  n:'Test Flight',   d:'Reach 5 km',                                    r:400,  check:r=>r.maxAlt>=5000},
   {k:'high',  n:'High Altitude', d:'Reach 30 km',                                   r:800,  check:r=>r.maxAlt>=30000},
@@ -446,8 +557,9 @@ const PRESETS={
 
 /* ================= persistence ================= */
 const SAVE_KEY='rocketforge:v2'; // v2: rebalanced economy — old saves restart fresh
-let save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:false};
+let save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:false,secretParts:[],upgrades:[],flights:[]};
 try{const raw=localStorage.getItem(SAVE_KEY);if(raw)Object.assign(save,JSON.parse(raw));}catch(e){}
+save.secretParts=save.secretParts||[];save.upgrades=save.upgrades||[];save.flights=save.flights||[];
 function saveState(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(save));}catch(e){}}
 
 /* ================= sound ================= */
@@ -527,7 +639,7 @@ function computeStats(types,fuelArr){
     const seg=segs[si];
     let m=0,f=0,t=0,ti=0,eng=0,tanks=0;
     for(const idx of seg){
-      const ty=types[idx],d=PARTS[ty];m+=d.m;cost+=d.c;
+      const ty=types[idx],d=PARTS[ty];m+=d.m;cost+=partCost(d.c);
       if(d.f){f+=fuelArr?fuelArr[idx]:d.f;tanks++;}
       if(d.t){t+=d.t;ti+=d.t/d.i;eng++;}
     }
@@ -558,15 +670,15 @@ function canPlace(type,k,types){
   if(d.h===0)return n>0; // fin needs a body
   const arr=types.slice();arr.splice(k,0,type);
   if(type==='nose')return k===0&&(n===0||types[0]!=='nose');
-  if(type==='shield')return k>0&&types[k-1]==='capsule'; // ablative shield sits under the pod
+  if(type==='shield'||type==='shieldH')return k>0&&types[k-1]==='capsule'; // ablative shield sits under the pod
   if(k===0&&n>0&&types[0]==='nose')return false; // nothing may sit above the nose
   if(PARTS[type].t){ // engines & boosters: their stage must contain a tank (or the booster's own propellant)
     const [a,b]=stageSegment(arr,k),seg=arr.slice(a,b+1);
     return seg.some(t=>PARTS[t].f); // stage must contain a tank
   }
-  if(type==='decoupler'){
+  if(type==='decoupler'||type==='separator'){
     if(k===0||k===n)return false;
-    if(types[k-1]==='decoupler'||types[k]==='decoupler')return false;
+    if(types[k-1]==='decoupler'||types[k]==='decoupler'||types[k-1]==='separator'||types[k]==='separator')return false;
     const [a,b]=stageSegment(arr,k+1),seg=arr.slice(a,b+1);
     if(seg.some(t=>PARTS[t].t)&&!seg.some(t=>PARTS[t].f))return false;
     return true;
@@ -829,9 +941,9 @@ function initFlight(types){
   F.hull=100;F.dmgFlash=0;F.hazards=[];
   F.x=0;F.vx=0;F.keyL=false;F.keyR=false;F.keyD=false;F.rcs=RCS_MAX;F.ai=false;F.dist=0;  F.rcsWarned=false;F.aiWarned=false;F.maneuvering=false;F.aiCmd={l:0,r:0,d:0};F.chuteWarned=false;
   F.temp=20;F.maxTemp=20;F.chuteLost=false;F.tempW1=false;F.tempW2=false;F.tempW3=false;
-  F.shieldMax=F.parts.filter(t=>t==='shield').length*100;
+  F.shieldMax=F.parts.filter(t=>t==='shield'||t==='shieldH').reduce((s,t)=>s+(t==='shieldH'?220:100),0);
   F.shield=F.shieldMax; // ablative protection only if the part is mounted
-  F.rcsMax=80+F.parts.filter(t=>t==='rcsTank').length*40;
+  F.rcsMax=Math.round((80+F.parts.filter(t=>t==='rcsTank').length*40+F.parts.filter(t=>t==='probe').length*200+F.parts.filter(t=>t==='rcsXL').length*90)*(hasUp('rcs20')?1.2:1));
   F.rcs=F.rcsMax; // capsule reserve + RCS tanks
   F.sciBonus=0;F.skippedMissions=0;
   F.troubleDue=Math.random()<0.55;F.troubleAt=30+Math.random()*50; // big scripted threat on ~55% of flights
@@ -843,7 +955,9 @@ function initFlight(types){
   $('btnPause').textContent='PAUSE';
   particles.length=0;
   setWarp(1);
-  save.funds-=F.cost;if(save.funds<0)save.funds=0;saveState();
+  save.funds-=F.cost;
+  if(hasUp('rebate5'))save.funds+=Math.round(F.cost*0.05); // launch rebate
+  if(save.funds<0)save.funds=0;saveState();
   $('msgLog').innerHTML='';
   $('countdown').textContent='';
   $('overlay').classList.add('hidden');
@@ -925,7 +1039,7 @@ function flightStep(dt){
   if(F.temp>500&&!F.tempW1){F.tempW1=true;msg('⚠ Temperature rising','x');}
   if(F.temp>900&&!F.tempW2){F.tempW2=true;msg('⚠ CRITICAL — heat shield ablating!','x');}
   if(F.temp>1000&&F.warp>1&&!F.tempW3){F.tempW3=true;setWarp(1);msg('⚠ Time warp disengaged — thermal critical','x');}
-  if(F.temp>700)F.shield=Math.max(0,F.shield-3*dt);
+  if(F.temp>(hasUp('heat10')?770:700))F.shield=Math.max(0,F.shield-3*dt);
   if(F.temp>1000&&F.shield<=0)F.hull=Math.max(0,F.hull-2*dt);
   if(F.temp>1300)F.hull=Math.max(0,F.hull-12*dt);
   if(F.temp>1050&&F.chute){
@@ -1005,17 +1119,30 @@ function endFlight(){
   const r={maxAlt:F.maxAlt,maxVel:F.maxVel,t:F.t,spaced:F.spaced,landed:F.endReason==='landed',
     maxQ:F.maxQ,maxAccel:F.maxAccel,timeInSpace:F.timeInSpace,stagesUsed:F.stagesUsed,
     parts:F.designTypes.length,cost:F.cost,hull:F.hull,dist:F.dist,maxTemp:F.maxTemp,
-    shieldParts:F.designTypes.filter(t=>t==='shield').length};
+    shieldParts:F.designTypes.filter(t=>t==='shield'||t==='shieldH').length};
   if(r.maxAlt>F.recordAtLaunch){
-    F.recordBonus=500; // extra payout for breaking the personal altitude record
-    save.funds+=500;
+    F.recordBonus=hasUp('record50')?750:500; // extra payout for breaking the personal altitude record
+    save.funds+=F.recordBonus;
     if(!F.brokeRecord)F.brokeRecord=true;
   }
-  // science pods sell their data after the flight
-  if(F.designTypes.includes('science')&&r.maxAlt>=30000){
-    F.sciBonus=r.spaced?600:200;
-    save.funds+=F.sciBonus;
-  }
+  // pod payouts: science/observation/lab data, cargo freight, crew fees
+  const sciMult=(1+((hasUp('sci10')?.1:0)+(hasUp('sci20')?.2:0)+(hasUp('sci30')?.3:0)))*(F.designTypes.includes('antenna')?1.25:1);
+  let dataBonus=0;
+  if(F.designTypes.includes('science')&&r.maxAlt>=30000)dataBonus+=r.spaced?600:200;
+  if(F.designTypes.includes('obs')&&r.maxAlt>=20000)dataBonus+=r.spaced?800:300;
+  if(F.designTypes.includes('lab')&&r.spaced)dataBonus+=1000;
+  dataBonus=Math.round(dataBonus*sciMult);
+  F.sciBonus=dataBonus;save.funds+=dataBonus;
+  let cargoBonus=0;
+  if(F.designTypes.includes('cargo')){cargoBonus+=150;if(r.maxAlt>=30000)cargoBonus+=400;}
+  if(F.designTypes.includes('cargoXL'))cargoBonus+=800;
+  if(hasUp('cargo10'))cargoBonus=Math.round(cargoBonus*1.1);
+  F.cargoBonus=cargoBonus;save.funds+=cargoBonus;
+  let crewBonus=0;
+  if(F.designTypes.includes('crew')&&r.landed)crewBonus=250;
+  if(hasUp('crew10'))crewBonus=Math.round(crewBonus*1.1);
+  F.crewBonus=crewBonus;save.funds+=crewBonus;
+  if(r.landed&&hasUp('land100'))save.funds+=100;
   if(r.maxAlt>save.record){save.record=Math.round(r.maxAlt);}
   if(r.spaced&&(save.bestCost===null||F.cost<save.bestCost))save.bestCost=F.cost;
   const earned=[];let total=0,skipped=0;
@@ -1026,7 +1153,11 @@ function endFlight(){
       else skipped++; // mission cap: max 3 completions per flight
     }
   }
+  if(hasUp('mission10'))total=Math.round(total*1.1);
   F.skippedMissions=skipped;
+  // flight log for the Command Pod
+  save.flights.unshift({alt:Math.round(r.maxAlt),t:Math.round(r.t),landed:r.landed,earned:total+F.recordBonus+F.sciBonus+F.cargoBonus+F.crewBonus,stamp:Date.now()});
+  save.flights=save.flights.slice(0,12);
   save.funds+=total;saveState();
   F.earnedTotal=total;F.earnedList=earned;F.result=r;
 }
@@ -1199,6 +1330,8 @@ function showOverlay(){
   $('ovFunds').innerHTML=
     (F.recordBonus>0?'★ New altitude record <b>+¤'+F.recordBonus+'</b> · ':'')+
     (F.sciBonus>0?'Science data <b>+¤'+F.sciBonus+'</b> · ':'')+
+    ((F.cargoBonus||0)>0?'Cargo <b>+¤'+F.cargoBonus+'</b> · ':'')+
+    ((F.crewBonus||0)>0?'Crew fees <b>+¤'+F.crewBonus+'</b> · ':'')+
     (F.earnedTotal>0?'Missions paid <b>¤'+fmt(F.earnedTotal)+'</b> — ':'')+
     'Funds now <b>¤'+fmt(save.funds)+'</b>';
   $('headerRecord').textContent=fmt(save.record)+' m';
@@ -1651,7 +1784,7 @@ function sellPart(i){
   if(phase!=='build'||i<0||i>=B.parts.length)return;
   const d=PARTS[B.parts[i]];
   pushUndo();
-  const refund=Math.round(d.c*0.75); // 3/4 of the purchase price back
+  const refund=Math.round(d.c*(hasUp('sell10')?0.85:0.75)); // salvage upgrade: 85% refund
   save.funds+=refund;
   B.parts.splice(i,1);
   B.sellMode=false;B.selected=-1;
@@ -1782,32 +1915,129 @@ function toggleMute(){
   updateFundsUI();
 }
 
+/* ================= pod interiors ================= */
+const EXP_COST=100;
+let podType=null;
+function openPod(t){
+  if(phase!=='build')return;
+  const d=PARTS[t];if(!d)return;
+  podType=t;
+  $('podModal').classList.add('show');
+  renderPod();
+}
+function closePod(){ $('podModal').classList.remove('show'); podType=null; }
+function renderPod(){
+  if(!podType)return;
+  const t=podType,d=PARTS[t];
+  $('podTitle').textContent=(FLAVOR[t]?'🚪 ':'')+d.n;
+  let body='';
+  if(t==='science'){
+    $('podSub').textContent='Experiments can discover new parts or upgrades — or nothing at all.';
+    const found=save.secretParts.length+save.upgrades.length;
+    body='<p class="flavor">'+FLAVOR.science+'</p>'+
+      '<p style="font-size:13px">Discovered: <b>'+found+'</b> / '+EXP_POOL.length+' · Funds <b>¤'+fmt(save.funds)+'</b></p>'+
+      '<button class="podbtn primary" id="btnExp">🧪 Run experiment — ¤'+EXP_COST+'</button>'+
+      '<div id="podResult"></div>'+
+      '<div class="podlist" id="podFindings"></div>';
+    $('podBody').innerHTML=body;
+    $('btnExp').addEventListener('click',runExperiment);
+    const f=$('podFindings');
+    let fh='<b>Parts unlocked:</b>';
+    if(save.secretParts.length)fh+=save.secretParts.map(s=>'<div>🔬 '+PARTS[s].n+'</div>').join('');
+    else fh+='<div>None yet — run experiments!</div>';
+    fh+='<b>Upgrades:</b>';
+    if(save.upgrades.length)fh+=save.upgrades.map(k=>'<div>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d+'</div>').join('');
+    else fh+='<div>None yet — run experiments!</div>';
+    f.innerHTML=fh;
+  }else if(t==='capsule'){
+    $('podSub').textContent='Flight controls and the mission logbook.';
+    body='<div class="podlist" style="font-size:12px">'+
+      '<div><b>Steer</b> ← → / A D · <b>Thrust down</b> ↓ / S</div>'+
+      '<div><b>Autopilot</b> Q · <b>Parachute</b> P · <b>Jettison stage</b> SPACE</div>'+
+      '<div><b>Warp</b> 1–7 · <b>Pause</b> ESC · <b>Mute</b> M</div></div>'+
+      '<p style="font-size:12px;color:var(--muted)">Flight log — last '+(save.flights.length)+' flights</p>'+
+      '<div class="podlist">'+
+      (save.flights.length?save.flights.map(f=>
+        '<div>'+new Date(f.stamp).toLocaleDateString()+' '+new Date(f.stamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+
+        ' · '+fmt(f.alt)+' m · '+fmtT(f.t)+' · '+(f.landed?'🪂 landed':'💥 lost')+' · +¤'+fmt(f.earned)+'</div>').join('')
+      :'<div>No flights yet — go fly!</div>')+
+      '</div>';
+    $('podBody').innerHTML=body;
+  }else{
+    $('podSub').textContent='A quiet moment inside the '+d.n.toLowerCase()+'.';
+    const stat=d.stat||(d.t?fmt(d.t/1000)+' kN':d.f?fmt(d.f)+' kg':d.i?d.i+' s ISP':'')||'—';
+    body='<p>'+d.desc+'</p>'+
+      '<p style="font-size:12px;color:var(--muted)">Cost ¤'+partCost(d.c)+' · Mass '+fmt(d.m)+' kg · '+stat+'</p>'+
+      '<p class="flavor" id="podFlavor">'+FLAVOR[t]+'</p>'+
+      '<button class="podbtn" id="btnPoke">🔍 Poke around</button>';
+    $('podBody').innerHTML=body;
+    $('btnPoke').addEventListener('click',()=>{
+      Snd.tick();
+      const facts=Object.values(FLAVOR).filter(f=>f!==FLAVOR[t]);
+      $('podFlavor').textContent=FLAVOR[t]+' '+facts[Math.floor(Math.random()*facts.length)];
+    });
+  }
+}
+function runExperiment(){
+  if(save.funds<EXP_COST){$('podResult').textContent='Not enough funds — each experiment costs ¤'+EXP_COST+'.';return;}
+  save.funds-=EXP_COST;
+  const available=EXP_POOL.filter(o=>o.startsWith('part:')?!save.secretParts.includes(o.slice(5)):!save.upgrades.includes(o.slice(3)));
+  let text='';
+  if(available.length===0||Math.random()<0.3){
+    text='Nothing Happened';
+    B.toast={text:'Nothing Happened',x:W/2,y:H*0.32,until:performance.now()+1800};
+    Snd.beep(90,0.25,'triangle',0.08);
+  }else{
+    const pick=available[Math.floor(Math.random()*available.length)];
+    if(pick.startsWith('part:')){
+      const t=pick.slice(5);save.secretParts.push(t);
+      text='🔬 New part unlocked: '+PARTS[t].n+'!';
+      buildPalette();
+    }else{
+      const k=pick.slice(3);save.upgrades.push(k);
+      text='🧬 New upgrade: '+UPGRADES[k].n+' — '+UPGRADES[k].d;
+    }
+    B.toast={text:text,x:W/2,y:H*0.32,until:performance.now()+2400};
+    Snd.chime();
+  }
+  saveState();updateFundsUI();
+  $('podResult').textContent=text;
+  const f=$('podFindings');
+  if(f){
+    let fh='<b>Parts unlocked:</b>';
+    if(save.secretParts.length)fh+=save.secretParts.map(s=>'<div>🔬 '+PARTS[s].n+'</div>').join('');
+    else fh+='<div>None yet — run experiments!</div>';
+    fh+='<b>Upgrades:</b>';
+    if(save.upgrades.length)fh+=save.upgrades.map(k=>'<div>🧬 '+UPGRADES[k].n+' — '+UPGRADES[k].d+'</div>').join('');
+    else fh+='<div>None yet — run experiments!</div>';
+    f.innerHTML=fh;
+  }
+}
+
 /* ================= wiring ================= */
 function buildPalette(){
   const pal=$('palette');
-  for(const t of PALETTE_ORDER){
+  pal.innerHTML='';
+  const mkCard=(t,secret)=>{
     const d=PARTS[t];
     const card=document.createElement('div');
     card.className='pcard';card.dataset.p=t;
+    if(secret)card.classList.add('secretcard');
     const ic=makeIcon(t);
     const stat=d.stat||(d.t?fmt(d.t/1000)+' kN':d.f?fmt(d.f)+' kg':d.i?d.i+' s ISP':'');
-    card.innerHTML='<div class="pcname"></div><div class="pccost">¤'+d.c+'</div>'+(stat?'<div class="pcstat">'+stat+'</div>':'');
-    card.insertBefore(ic,card.firstChild);
-    const nameEl=card.querySelector('.pcname');
-    nameEl.textContent=d.n;
-    // reorder: icon, name, cost, stat
-    card.innerHTML='';
-    card.appendChild(ic);
-    const nm=document.createElement('div');nm.className='pcname';nm.textContent=d.n;card.appendChild(nm);
-    const cs=document.createElement('div');cs.className='pccost';cs.textContent='¤'+d.c;card.appendChild(cs);
+    const nm=document.createElement('div');nm.className='pcname';nm.textContent=(secret?'🔬 ':'')+d.n;card.appendChild(ic);card.appendChild(nm);
+    const cs=document.createElement('div');cs.className='pccost';cs.textContent='¤'+partCost(d.c);card.appendChild(cs);
     if(stat){const st=document.createElement('div');st.className='pcstat';st.textContent=stat;card.appendChild(st);}
+    card.title=d.desc;
     card.addEventListener('click',()=>{
       B.picked=(B.picked===t)?null:t;
       Snd.tick();
       updateBuilderUI();
     });
     pal.appendChild(card);
-  }
+  };
+  for(const t of PALETTE_ORDER)mkCard(t,false);
+  for(const t of SECRET_ORDER)if(save.secretParts.includes(t))mkCard(t,true);
 }
 function setPreset(name){
   if(!PRESETS[name])return;
@@ -1829,6 +2059,9 @@ $('loadBtn').addEventListener('click',()=>{
 });
 $('btnLaunch').addEventListener('click',launch);
 $('btnRemove').addEventListener('click',()=>sellPart(B.selected));
+$('btnEnter').addEventListener('click',()=>{ if(phase==='build'&&B.selected>=0) openPod(B.parts[B.selected]); });
+$('podClose').addEventListener('click',closePod);
+$('podModal').addEventListener('click',e=>{ if(e.target.id==='podModal') closePod(); });
 $('btnStage').addEventListener('click',jettison);
 $('btnChute').addEventListener('click',chuteDeploy);
 $('btnPause').addEventListener('click',togglePause);
@@ -1861,7 +2094,7 @@ $('resetBtn').addEventListener('click',()=>{
   }
   disarmReset();
   if(phase==='flight')backToBuilder();
-  save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted};
+  save={funds:3000,record:0,bestCost:null,missions:[],design:null,muted:save.muted,secretParts:[],upgrades:[],flights:[]};
   saveState();
   B.parts=[];B.selected=-1;B.picked=null;B.undoStack.length=0;
   Snd.muted=save.muted;
