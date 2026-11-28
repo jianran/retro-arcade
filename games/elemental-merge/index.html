@@ -745,11 +745,6 @@ function createProfile(name){
   const p={id:Date.now().toString(36),name,created:Date.now()};
   profiles.push(p);saveProfiles(profiles);return p;
 }
-function deleteProfile(id){
-  let profiles=getProfiles();profiles=profiles.filter(p=>p.id!==id);
-  saveProfiles(profiles);localStorage.removeItem(saveKey(id));
-}
-
 function saveGame(){
   if(!activeProfile)return;
   try{
@@ -2089,7 +2084,6 @@ function showProfileSelector(){
   for(const p of profiles){
     rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin:4px 0;background:rgba(255,255,255,.05);border-radius:8px;">
       <span style="cursor:pointer;flex:1;text-align:left;font-weight:600;" onclick="selectProfile('${p.id}')">👤 ${p.name}</span>
-      <button onclick="deleteProfile('${p.id}');showProfileSelector();" style="background:none;border:none;color:#ff4444;cursor:pointer;font-size:14px;" title="Delete">🗑️</button>
     </div>`;
   }
   document.getElementById('overlay-container').innerHTML=`
