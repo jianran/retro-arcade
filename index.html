@@ -52,6 +52,7 @@ h1{
   line-height:1.25;
   text-shadow:0 0 10px rgba(255,79,216,.75),0 0 34px rgba(255,79,216,.35);
   animation:flicker 7s infinite;
+  transition:filter 1s ease-in-out; /* neon sign color cycle */
 }
 h1 .accent{
   background:linear-gradient(90deg,var(--pink),var(--cyan));
@@ -722,6 +723,13 @@ function forwardKeyToGame(e){
 }
 
 refreshDaily();
+
+/* ---- neon sign: the RETRO ARCADE title cycles color every second ---- */
+const sign = document.querySelector("header h1");
+if (sign && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  let hue = 0;
+  setInterval(() => { hue = (hue + 60) % 360; sign.style.filter = `hue-rotate(${hue}deg)`; }, 1000);
+}
 
 // Redeem link (e.g. …/#r=A1B2C3D4.XXXX…): applies the top-up automatically.
 // Runs on load AND on hashchange — on phones the arcade tab may already be
